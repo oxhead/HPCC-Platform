@@ -302,6 +302,7 @@ bool ipMatch(IpAddress &ip)
 
 void addSlaveChannel(unsigned channel, unsigned level)
 {
+    DBGLOG("[Roxie] addSlaveChannel: channel=%u, level=%u", channel, level);
     StringBuffer xpath;
     xpath.appendf("RoxieSlaveProcess[@channel=\"%d\"]", channel);
     if (ccdChannels->hasProp(xpath.str()))
@@ -310,10 +311,12 @@ void addSlaveChannel(unsigned channel, unsigned level)
     ci->setPropInt("@channel", channel);
     ci->setPropInt("@subChannel", numSlaves[channel]);
     ccdChannels->addPropTree("RoxieSlaveProcess", ci);
+    DBGLOG("[Roxie] slaveChannel: channel=%u, subChannel=%u", channel, numSlaves[channel]);
 }
 
 void addChannel(unsigned nodeNumber, unsigned channel, unsigned level)
 {
+    DBGLOG("[Roxie] addChannel: nodeNumber=%u, channel=%u, level=%u", nodeNumber, channel, level);
     numSlaves[channel]++;
     if (nodeNumber == myNodeIndex && channel > 0)
     {
@@ -324,6 +327,7 @@ void addChannel(unsigned nodeNumber, unsigned channel, unsigned level)
     }
     if (!localSlave)
     {
+        DBGLOG("[Roxie] is local slave");
         addEndpoint(channel, getNodeAddress(nodeNumber), ccdMulticastPort);
     }
 }
@@ -926,6 +930,8 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
                 myNodeIndex = nodeIndex;
             if (traceLevel > 3)
                 DBGLOG("Roxie server %u is at %s", nodeIndex, iptext);
+            DBGLOG("Roxie server %u is at %s", nodeIndex, iptext);
+            DBGLOG("[Roxie] myNodeIndex=%u", nodeIndex);
         }
         if (myNodeIndex == -1)
             throw MakeStringException(MSGAUD_operator, ROXIE_INVALID_TOPOLOGY, "Invalid topology file - current node is not in server list");
@@ -988,9 +994,11 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
         }
         else    // 'Full redundancy' or 'simple' mode
         {
+            DBGLOG("[Roxie][main] channel mode: simple");
             if (numNodes % numDataCopies)
                 throw MakeStringException(MSGAUD_operator, ROXIE_INVALID_TOPOLOGY, "Invalid topology file - numChannels not an integer");
             numChannels = numNodes / numDataCopies;
+            DBGLOG("[Roxie] numChannels=%u, numNodes=%u, numDataCopies=%u", numChannels, numNodes, numDataCopies);
             int channel = 1;
             for (unsigned i=0; i<numNodes; i++)
             {
@@ -1028,6 +1036,7 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
         Owned<IHpccProtocolPluginContext> protocolCtx = new CHpccProtocolPluginCtx();
         if (runOnce)
         {
+			DBGLOG("[Roxie] entering runOnce");
             Owned<IHpccProtocolPlugin> protocolPlugin = loadHpccProtocolPlugin(protocolCtx, NULL);
             Owned<IHpccProtocolListener> roxieServer = protocolPlugin->createListener("runOnce", createRoxieProtocolMsgSink(getNodeAddress(myNodeIndex), 0, 1, false), 0, 0, NULL);
             try
@@ -1057,10 +1066,12 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
         }
         else
         {
+            DBGLOG("[Roxie] entering cluster mode");
             Owned<IPropertyTreeIterator> roxieFarms = topology->getElements("./RoxieFarmProcess");
             ForEach(*roxieFarms)
             {
                 IPropertyTree &roxieFarm = roxieFarms->query();
+                DBGLOG("[Roxie] farm process: %s", roxieFarm.queryName());
                 unsigned listenQueue = roxieFarm.getPropInt("@listenQueue", DEFAULT_LISTEN_QUEUE_SIZE);
                 unsigned numThreads = roxieFarm.getPropInt("@numThreads", numServerThreads);
                 unsigned port = roxieFarm.getPropInt("@port", ROXIE_SERVER_PORT);

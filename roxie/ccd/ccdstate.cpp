@@ -2736,6 +2736,7 @@ private:
             }
             else if (stricmp(queryName, "control:topology")==0)
             {
+                DBGLOG("[Roxie][command] executing in topology");
                 toXML(topology, reply);
             }
             else if (stricmp(queryName, "control:trace")==0)

@@ -1772,6 +1772,7 @@ bool CSafeSocket::readBlock(StringBuffer &ret, unsigned timeout, HttpHelper *pHt
                 const char *query = pHttpHelper->queryQueryName();
                 if (!query || !*query)
                     throw MakeStringException(THORHELPER_DATA_ERROR, "HTTP-GET Query not specified");
+
                 return true;
         }
         else if (strnicmp((char *)&len, "STAT", 4) == 0)

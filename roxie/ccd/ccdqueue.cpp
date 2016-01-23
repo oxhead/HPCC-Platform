@@ -132,6 +132,9 @@ void openMulticastSocket()
 
 void addEndpoint(unsigned channel, const IpAddress &slaveIp, unsigned port)
 {
+    StringBuffer ipText;
+    slaveIp.getIpText(ipText);
+    DBGLOG("[Roxie] addEndpoint: channel=%u, IpAddress=%s, port=%u", channel, ipText.str(), port);
     if (!slaveEndpoints)
         slaveEndpoints = new SocketEndpointArray[numChannels + 1];
     IpAddress multicastIp;
@@ -2623,6 +2626,10 @@ IRoxieOutputQueueManager *ROQ;
 
 extern IRoxieOutputQueueManager *createOutputQueueManager(unsigned snifferChannel, unsigned numWorkers)
 {
+    if (localSlave)
+        DBGLOG("[Roxie] using local queue manager");
+    else
+        DBGLOG("[Roxie] using socket queue manager");
     if (localSlave)
         return new RoxieLocalQueueManager(snifferChannel, numWorkers);
     else
