@@ -1462,6 +1462,7 @@ private:
     void doMain(const char *runQuery)
     {
         StringBuffer rawText(runQuery);
+        DBGLOG("[Roxie] rawText=%s", rawText.str());
         unsigned priority = (unsigned) -2;
         unsigned memused = 0;
         Owned<CascadeManager> cascade;

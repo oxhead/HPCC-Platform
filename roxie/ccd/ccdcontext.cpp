@@ -2777,6 +2777,7 @@ public:
 
     virtual void process()
     {
+        DBGLOG("[Roxie][ServerContext] starting to process");
         MTIME_SECTION(myTimer, "Process");
         EclProcessFactory pf = (EclProcessFactory) factory->queryDll()->getEntry("createProcess");
         Owned<IEclProcess> p = pf();
@@ -3863,6 +3864,10 @@ public:
 
 IRoxieServerContext *createRoxieServerContext(IPropertyTree *context, const IQueryFactory *factory, SafeSocket &client, bool isXml, bool isRaw, bool isBlocked, HttpHelper &httpHelper, bool trim, const ContextLogger &_logctx, PTreeReaderOptions readFlags, const char *querySetName)
 {
+    if (httpHelper.isHttp())
+        DBGLOG("[Roxie][ServerContext] http mode");
+    else
+        DBGLOG("[Roxie][ServerContext] server mode");
     if (httpHelper.isHttp())
     {
         if (httpHelper.queryContentFormat()==MarkupFmt_JSON)
