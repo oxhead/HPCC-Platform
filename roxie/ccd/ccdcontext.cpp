@@ -2848,6 +2848,7 @@ public:
 
     virtual void process()
     {
+        DBGLOG("[Roxie][ServerContext] starting to process");
         MTIME_SECTION(myTimer, "Process");
         QueryTerminationCleanup threadCleanup;
         EclProcessFactory pf = (EclProcessFactory) factory->queryDll()->getEntry("createProcess");

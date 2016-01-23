@@ -1735,7 +1735,7 @@ bool CSafeSocket::readBlock(StringBuffer &ret, unsigned timeout, HttpHelper *pHt
                         pHttpHelper->setAuthToken(headerline+21);
                     bytesread = readHttpHeaderLine(linereader, headerline, MAX_HTTP_GET_LINE);
                 }
-
+                
                 StringBuffer queryName;
                 const char *target = pHttpHelper->queryTarget();
                 if (!target || !*target)
@@ -1745,7 +1745,9 @@ bool CSafeSocket::readBlock(StringBuffer &ret, unsigned timeout, HttpHelper *pHt
                 const char *query = pHttpHelper->queryQueryName();
                 if (!query || !*query)
                     throw MakeStringException(THORHELPER_DATA_ERROR, "HTTP-GET Query not specified");
-
+                DBGLOG("[Roxie][socket] queryTarget=%s", pHttpHelper->queryTarget());
+                DBGLOG("[Roxie][socket] queryName=%s", pHttpHelper->queryQueryName());
+                
                 queryName.append(query);
                 Owned<IPropertyTree> req = createPTreeFromHttpParameters(queryName, pHttpHelper->queryUrlParameters(), true, pHttpHelper->queryContentFormat()==MarkupFmt_JSON);
                 if (pHttpHelper->queryContentFormat()==MarkupFmt_JSON)
