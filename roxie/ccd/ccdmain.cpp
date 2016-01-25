@@ -417,6 +417,21 @@ void saveTopology()
     }
 }
 
+void saveChannel()
+{
+	try
+	{
+		StringBuffer channelFile;
+		channelFile.append(codeDirectory).append(PATHSEPCHAR).append("RoxieChannel.xml");
+		saveXML(channelFile.str(), ccdChannels);
+	}
+	catch (IException *E)
+	{
+		EXCLOG(E, "Error saving channel file");
+		E->Release();
+	}
+}
+
 class CHpccProtocolPluginCtx : public CInterface, implements IHpccProtocolPluginContext
 {
 public:
@@ -1026,6 +1041,7 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
             throw MakeStringException(MSGAUD_operator, ROXIE_INVALID_TOPOLOGY, "Invalid topology file - numChannels calculated at 0");
         if (numChannels > 1 && localSlave)
             throw MakeStringException(MSGAUD_operator, ROXIE_INVALID_TOPOLOGY, "Invalid topology file - localSlave requires single channel (%d channels specified)", numChannels);
+        saveChannel();
         // Now we know all the channels, we can open and subscribe the multicast channels
         if (!localSlave)
             openMulticastSocket();
