@@ -1675,10 +1675,11 @@ void parseHttpParameterString(IProperties *p, const char *str)
     }
 }
 
-bool CSafeSocket::readBlock(StringBuffer &ret, unsigned timeout, HttpHelper *pHttpHelper, bool &continuationNeeded, bool &isStatus, unsigned maxBlockSize)
+bool CSafeSocket::readBlock(StringBuffer &ret, unsigned timeout, HttpHelper *pHttpHelper, bool &continuationNeeded, bool &isStatus, unsigned maxBlockSize, bool &isAdmin)
 {
     continuationNeeded = false;
     isStatus = false;
+    isAdmin = false;
     CriticalBlock c(crit);
     try
     {
@@ -1687,6 +1688,7 @@ bool CSafeSocket::readBlock(StringBuffer &ret, unsigned timeout, HttpHelper *pHt
         try
         {
             sock->read(&len, sizeof (len), sizeof (len), bytesRead, timeout);
+            DBGLOG("[Roxie][Socket] read len=%s", (char *)&len);
         }
         catch (IJSOCK_Exception *E)
         {
@@ -1777,6 +1779,46 @@ bool CSafeSocket::readBlock(StringBuffer &ret, unsigned timeout, HttpHelper *pHt
         }
         else if (strnicmp((char *)&len, "STAT", 4) == 0)
             isStatus = true;
+        else if (pHttpHelper != NULL && strncmp((char *)&len, "CMD", 3) == 0)
+        {
+            DBGLOG("[Roxie][admin] entering command mode");
+            isAdmin = true;
+
+#define MAX_HTTP_HEADERSIZE 8000 // is this size big enough?
+            pHttpHelper->setIsHttp(true);
+            char header[MAX_HTTP_HEADERSIZE + 1]; // allow room for \0
+            sock->read(header, 1, MAX_HTTP_HEADERSIZE, bytesRead, timeout);
+            header[bytesRead] = 0;
+            DBGLOG("[Roxie][admin] data=%.*s", bytesRead, header);
+            char *payload = strstr(header, "\r\n\r\n");
+            if (payload)
+            {
+                *payload = 0;
+                payload += 4;
+                char *str;
+
+                // determine payload length
+                str = strstr(header, "Content-Length: ");
+                if (str)
+                {
+                    len = atoi(str + strlen("Content-Length: "));
+                    DBGLOG("[Roxie][admin] payload length=%d", len);
+                    buf = ret.reserveTruncate(len);
+                    left = len - (bytesRead - (payload - header));
+                    DBGLOG("[Roxie][admin] header=%u, payload=%u", header, payload);
+                    DBGLOG("[Roxie][admin] left=%u -> len=%u, bytesRead=%u, payload-header=%u", left, len, bytesRead, (payload-header));
+                    if (len > left)
+                        memcpy(buf, payload, len - left); 
+                }
+                else
+                    left = len = 0;
+            }
+            else
+                left = len = 0;
+
+            if (!len)
+                throw MakeStringException(THORHELPER_DATA_ERROR, "Badly formed HTTP header");
+        }
         else
         {
             _WINREV(len);
@@ -1793,9 +1835,13 @@ bool CSafeSocket::readBlock(StringBuffer &ret, unsigned timeout, HttpHelper *pHt
                 buf = ret.reserveTruncate(len);
         }
 
+        DBGLOG("[Roxie][Socket] left=%d, len=%d", left, len);
+
         if (left)
         {
+            DBGLOG("[Roxie][Socket] reading data into buf -> lef=%d, len=%d", left, len);
             sock->read(buf + (len - left), left, left, bytesRead, timeout);
+            DBGLOG("[Roxie][Socket] read data into buf -> bytesRead=%d", bytesRead);
         }
 
         return len != 0;

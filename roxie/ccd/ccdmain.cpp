@@ -93,6 +93,11 @@ IPropertyTree* ccdChannels;
 StringArray allQuerySetNames;
 IProperties *targetAliases;
 
+// the variables to support elasticity
+StringBuffer roxieMasterIp;
+bool isMaster = false;
+MapStringTo<int> serverIdRecord;
+
 bool allFilesDynamic;
 bool lockSuperFiles;
 bool crcResources;
@@ -327,7 +332,7 @@ void addChannel(unsigned nodeNumber, unsigned channel, unsigned level)
     }
     if (!localSlave)
     {
-        DBGLOG("[Roxie] is local slave");
+        DBGLOG("[Roxie] is not local slave");
         addEndpoint(channel, getNodeAddress(nodeNumber), ccdMulticastPort);
     }
 }
@@ -927,7 +932,16 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
             const char *iptext = roxieServer.queryProp("@netAddress");
             unsigned nodeIndex = addRoxieNode(iptext);
             if (getNodeAddress(nodeIndex).isLocal())
+            {
                 myNodeIndex = nodeIndex;
+                isMaster = roxieServer.getPropBool("@master", false);
+                DBGLOG("[Roxie][main] isMaster=%s", isMaster ? "True" : "False");
+            }
+            if (roxieServer.getPropBool("@master", false))
+            {
+                roxieServer.getProp("@netAddress", roxieMasterIp);
+                DBGLOG("[Roxie][main] master=%s", roxieMasterIp.str());
+            }
             if (traceLevel > 3)
                 DBGLOG("Roxie server %u is at %s", nodeIndex, iptext);
             DBGLOG("Roxie server %u is at %s", nodeIndex, iptext);
