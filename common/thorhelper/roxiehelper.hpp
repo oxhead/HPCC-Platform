@@ -27,6 +27,8 @@
 
 //========================================================================================= 
 
+static bool dummy = false;
+
 class THORHELPER_API HttpHelper : public CInterface
 {
 private:
@@ -160,7 +162,7 @@ interface SafeSocket : extends IInterface
     virtual ISocket *querySocket()  = 0;
     virtual size32_t write(const void *buf, size32_t size, bool takeOwnership=false) = 0;
     virtual bool readBlock(MemoryBuffer &ret, unsigned maxBlockSize, unsigned timeout = (unsigned) WAIT_FOREVER) = 0;
-    virtual bool readBlock(StringBuffer &ret, unsigned timeout, HttpHelper *pHttpHelper, bool &, bool &, unsigned maxBlockSize) = 0;
+    virtual bool readBlock(StringBuffer &ret, unsigned timeout, HttpHelper *pHttpHelper, bool &, bool &, unsigned maxBlockSize, bool &isAdmin=dummy) = 0;
     virtual void checkSendHttpException(HttpHelper &httphelper, IException *E, const char *queryName) = 0;
     virtual void sendSoapException(IException *E, const char *queryName) = 0;
     virtual void sendJsonException(IException *E, const char *queryName) = 0;
@@ -200,7 +202,7 @@ public:
     virtual CriticalSection &queryCrit() { return crit; };
     size32_t write(const void *buf, size32_t size, bool takeOwnership=false);
     bool readBlock(MemoryBuffer &ret, unsigned maxBlockSize, unsigned timeout = (unsigned) WAIT_FOREVER);
-    bool readBlock(StringBuffer &ret, unsigned timeout, HttpHelper *pHttpHelper, bool &, bool &, unsigned maxBlockSize);
+    bool readBlock(StringBuffer &ret, unsigned timeout, HttpHelper *pHttpHelper, bool &, bool &, unsigned maxBlockSize, bool & isAdmin=dummy);
     void setHttpMode(const char *queryName, bool arrayMode, HttpHelper &httphelper);
     void checkSendHttpException(HttpHelper &httphelper, IException *E, const char *queryName);
     void sendSoapException(IException *E, const char *queryName);
