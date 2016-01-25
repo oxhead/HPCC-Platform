@@ -1469,6 +1469,7 @@ private:
         IpAddress peer;
         bool continuationNeeded = false;
         bool isStatus = false;
+        bool isAdmin = false;
 readAnother:
         Owned<IDebuggerContext> debuggerContext;
         unsigned slavesReplyLen = 0;
@@ -1478,7 +1479,7 @@ readAnother:
             if (client)
             {
                 client->querySocket()->getPeerAddress(peer);
-                if (!client->readBlock(rawText, WAIT_FOREVER, &httpHelper, continuationNeeded, isStatus, maxBlockSize))
+                if (!client->readBlock(rawText, WAIT_FOREVER, &httpHelper, continuationNeeded, isStatus, maxBlockSize, isAdmin))
                 {
                     if (traceLevel > 8)
                     {
@@ -1508,6 +1509,8 @@ readAnother:
             client.clear();
             return;
         }
+
+        DBGLOG("[Roxie][Worker] rawText=%s", rawText.str());
 
         TextMarkupFormat mlFmt = MarkupFmt_XML;
         bool isRaw = false;
@@ -1629,6 +1632,42 @@ readAnother:
             else if (isStatus)
             {
                 client->write("OK", 2);
+            }
+            else if (isAdmin)
+            {
+                Owned<IPropertyTree> cmdJson;
+                cmdJson.setown(createPTreeFromJSONString(rawText.str(), ipt_caseInsensitive, (PTreeReaderOptions)(defaultXmlReadFlags | ptr_ignoreNameSpaces)));
+                const char *action = cmdJson->queryProp("./action");
+                DBGLOG("[Roxie][Worker] action=%s", action);
+
+                MapStringTo<StringBuffer> params;
+                Owned<IPropertyTreeIterator> paramsIter = cmdJson->getElements("./params/*");
+                ForEach(*paramsIter)
+                {
+                    StringBuffer paramKey;
+                    StringBuffer paramValue;
+                    paramKey.append("./params/").append(paramsIter->query().queryName());
+                    paramValue.append(cmdJson->queryProp(paramKey.str()));
+                    params.setValue(paramsIter->query().queryName(), paramValue);
+                    DBGLOG("[Roxie][Worker] xpath=%s", paramKey.str());
+                    DBGLOG("[Roxie][Worker] param -> name=%s, value=%s", paramsIter->query().queryName(), params.getValue(paramsIter->query().queryName())->str());
+                }
+
+                if (strnicmp(action, "echo", 4) == 0)
+                {
+                    DBGLOG("[Roxie][Worker] do: echo");
+                    client->write("ECHOECHO", 8); // only echo will not get flushed
+                }
+                else if (strnicmp(action, "register", 8) == 0)
+                {
+                    DBGLOG("[Roxie][Worker] do: register");
+                    client->write("REGISTERED", 10);
+                }
+                else
+                {
+                    DBGLOG("[Roxie][Worker] do: else");
+                    client->write("UNIMPLEMENTED", 13);
+                }
             }
             else
             {
