@@ -23,6 +23,7 @@
 #include "wujobq.hpp"
 
 #include "ccd.hpp"
+#include "ccdcluster.hpp"
 #include "ccdcontext.hpp"
 #include "ccdlistener.hpp"
 #include "ccddali.hpp"
@@ -1640,7 +1641,7 @@ readAnother:
                 const char *action = cmdJson->queryProp("./action");
                 DBGLOG("[Roxie][Worker] action=%s", action);
 
-                MapStringTo<StringBuffer> params;
+                MapStringTo<StringBuffer> *params = new MapStringTo<StringBuffer>();
                 Owned<IPropertyTreeIterator> paramsIter = cmdJson->getElements("./params/*");
                 ForEach(*paramsIter)
                 {
@@ -1648,9 +1649,9 @@ readAnother:
                     StringBuffer paramValue;
                     paramKey.append("./params/").append(paramsIter->query().queryName());
                     paramValue.append(cmdJson->queryProp(paramKey.str()));
-                    params.setValue(paramsIter->query().queryName(), paramValue);
+                    params->setValue(paramsIter->query().queryName(), paramValue);
                     DBGLOG("[Roxie][Worker] xpath=%s", paramKey.str());
-                    DBGLOG("[Roxie][Worker] param -> name=%s, value=%s", paramsIter->query().queryName(), params.getValue(paramsIter->query().queryName())->str());
+                    DBGLOG("[Roxie][Worker] param -> name=%s, value=%s", paramsIter->query().queryName(), params->getValue(paramsIter->query().queryName())->str());
                 }
 
                 if (strnicmp(action, "echo", 4) == 0)
@@ -1663,11 +1664,25 @@ readAnother:
                     DBGLOG("[Roxie][Worker] do: register");
                     client->write("REGISTERED", 10);
                 }
+                else if (strnicmp(action, "join", 4) == 0)
+                {
+                    const char *keyHost = "host";
+                    DBGLOG("[Roxie][Worker] do: join");
+                    DBGLOG("[Roxie][Worker] host=%s", params->getValue(keyHost)->str());
+                    roxieClusterManager->addNode(params->getValue(keyHost)->str());
+                    client->write("JOINED", 6);
+                }
+                else if (strnicmp(action, "leave", 5) == 0)
+                {
+                    DBGLOG("[Roxie][Worker] do: register");
+                    client->write("LEAVE", 5);
+                }
                 else
                 {
                     DBGLOG("[Roxie][Worker] do: else");
                     client->write("UNIMPLEMENTED", 13);
                 }
+                delete params;
             }
             else
             {
