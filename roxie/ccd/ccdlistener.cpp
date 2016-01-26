@@ -23,6 +23,7 @@
 #include "wujobq.hpp"
 
 #include "ccd.hpp"
+#include "ccdcluster.hpp"
 #include "ccdcontext.hpp"
 #include "ccdlistener.hpp"
 #include "ccddali.hpp"

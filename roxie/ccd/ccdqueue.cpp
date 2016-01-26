@@ -24,6 +24,7 @@
 #include "jisem.hpp"
 #include "udplib.hpp"
 #include "ccd.hpp"
+#include "ccdcluster.hpp"
 #include "ccddebug.hpp"
 #include "ccdquery.hpp"
 #include "ccdstate.hpp"
@@ -88,6 +89,9 @@ void joinMulticastChannel(unsigned channel)
     {
         IpAddress multicastIp;
         getChannelIp(multicastIp, channel);
+        StringBuffer ipText;
+        multicastIp.getIpText(ipText);
+        DBGLOG("[Roxie][Multicast] channel %u -> ip=%s", channel, ipText.str());
         SocketEndpoint ep(ccdMulticastPort, multicastIp);
         StringBuffer epStr;
         ep.getUrlStr(epStr);

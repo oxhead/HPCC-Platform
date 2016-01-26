@@ -31,6 +31,7 @@
 #include "dalienv.hpp"
 #include "rmtfile.hpp"
 #include "ccd.hpp"
+#include "ccdcluster.hpp"
 #include "ccdquery.hpp"
 #include "ccdstate.hpp"
 #include "ccdqueue.ipp"
@@ -92,11 +93,6 @@ CriticalSection ccdChannelsCrit;
 IPropertyTree* ccdChannels;
 StringArray allQuerySetNames;
 IProperties *targetAliases;
-
-// the variables to support elasticity
-StringBuffer roxieMasterIp;
-bool isMaster = false;
-MapStringTo<int> serverIdRecord;
 
 bool allFilesDynamic;
 bool lockSuperFiles;
@@ -940,6 +936,8 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
             }
         }
 
+        roxieClusterManager.setown(createRoxieClusterManager());
+        roxieClusterManager->start();
         Owned<IPropertyTreeIterator> roxieServers = topology->getElements("./RoxieServerProcess");
         ForEach(*roxieServers)
         {
@@ -949,13 +947,14 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
             if (getNodeAddress(nodeIndex).isLocal())
             {
                 myNodeIndex = nodeIndex;
-                isMaster = roxieServer.getPropBool("@master", false);
+                bool isMaster = roxieServer.getPropBool("@master", false); // required in the config file
                 DBGLOG("[Roxie][main] isMaster=%s", isMaster ? "True" : "False");
+                if (isMaster)
+                    roxieClusterManager->enableMaster();
             }
             if (roxieServer.getPropBool("@master", false))
             {
-                roxieServer.getProp("@netAddress", roxieMasterIp);
-                DBGLOG("[Roxie][main] master=%s", roxieMasterIp.str());
+                roxieClusterManager->setMaster(iptext);
             }
             if (traceLevel > 3)
                 DBGLOG("Roxie server %u is at %s", nodeIndex, iptext);
@@ -1175,6 +1174,8 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
         ROQ->join();
         ROQ->Release();
         ROQ = NULL;
+        
+        roxieClusterManager->stop();
     }
     catch (IException *E)
     {
@@ -1183,6 +1184,7 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
         E->Release();
     }
 
+    roxieClusterManager.clear();
     roxieMetrics.clear();
     stopPerformanceMonitor();
     ::Release(globalPackageSetManager);

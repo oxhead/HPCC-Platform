@@ -29,6 +29,7 @@ project( ccd )
 set (   SRCS 
         ccdactivities.cpp 
         ccddali.cpp
+        ccdcluster.cpp
         ccdcontext.cpp
         ccddebug.cpp
         ccdserver.cpp 
@@ -44,6 +45,7 @@ set (   SRCS
          
         ccd.hpp
         ccdactivities.hpp
+        ccdcluster.hpp
         ccdcontext.hpp
         ccddebug.hpp
         ccddali.hpp
