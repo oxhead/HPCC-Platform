@@ -1732,51 +1732,7 @@ readAnother:
 			{
 				Owned<IPropertyTree> cmdJson;
 				cmdJson.setown(createPTreeFromJSONString(rawText.str(), ipt_caseInsensitive, (PTreeReaderOptions)(defaultXmlReadFlags | ptr_ignoreNameSpaces)));
-				const char *action = cmdJson->queryProp("./action");
-				DBGLOG("[Roxie][Worker] action=%s", action);
-
-				MapStringTo<StringBuffer> *params = new MapStringTo<StringBuffer>();
-				Owned<IPropertyTreeIterator> paramsIter = cmdJson->getElements("./params/*");
-				ForEach(*paramsIter)
-				{
-					StringBuffer paramKey;
-					StringBuffer paramValue;
-					paramKey.append("./params/").append(paramsIter->query().queryName());
-					paramValue.append(cmdJson->queryProp(paramKey.str()));
-					params->setValue(paramsIter->query().queryName(), paramValue);
-					DBGLOG("[Roxie][Worker] xpath=%s", paramKey.str());
-					DBGLOG("[Roxie][Worker] param -> name=%s, value=%s", paramsIter->query().queryName(), params->getValue(paramsIter->query().queryName())->str());
-				}
-
-				if (strnicmp(action, "echo", 4) == 0)
-				{
-					DBGLOG("[Roxie][Worker] do: echo");
-					client->write("ECHOECHO", 8); // only echo will not get flushed
-				}
-				else if (strnicmp(action, "register", 8) == 0)
-				{
-					DBGLOG("[Roxie][Worker] do: register");
-					client->write("REGISTERED", 10);
-				}
-				else if (strnicmp(action, "join", 4) == 0)
-				{
-					const char *keyHost = "host";
-					DBGLOG("[Roxie][Worker] do: join");
-					DBGLOG("[Roxie][Worker] host=%s", params->getValue(keyHost)->str());
-					roxieClusterManager->addNode(params->getValue(keyHost)->str());
-					client->write("JOINED", 6);
-				}
-				else if (strnicmp(action, "leave", 5) == 0)
-				{
-					DBGLOG("[Roxie][Worker] do: register");
-					client->write("LEAVE", 5);
-				}
-				else
-				{
-					DBGLOG("[Roxie][Worker] do: else");
-					client->write("UNIMPLEMENTED", 13);
-				}
-				delete params;
+				roxieMasterProxy->handleRequest(cmdJson.get(), client.get());
 			}
             else
             {

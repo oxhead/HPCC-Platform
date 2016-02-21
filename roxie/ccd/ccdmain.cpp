@@ -936,34 +936,51 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
             }
         }
 
-        roxieClusterManager.setown(createRoxieClusterManager());
-        roxieClusterManager->start();
+		roxieClusterManager = createRoxieClusterManager();
         Owned<IPropertyTreeIterator> roxieServers = topology->getElements("./RoxieServerProcess");
         ForEach(*roxieServers)
         {
             IPropertyTree &roxieServer = roxieServers->query();
             const char *iptext = roxieServer.queryProp("@netAddress");
-            unsigned nodeIndex = addRoxieNode(iptext);
-            if (getNodeAddress(nodeIndex).isLocal())
-            {
-                myNodeIndex = nodeIndex;
-                bool isMaster = roxieServer.getPropBool("@master", false); // required in the config file
-                DBGLOG("[Roxie][main] isMaster=%s", isMaster ? "True" : "False");
-                if (isMaster)
-                    roxieClusterManager->enableMaster();
-            }
+            //unsigned nodeIndex = addRoxieNode(iptext);
+            //if (getNodeAddress(nodeIndex).isLocal())
+            //{
+            //    myNodeIndex = nodeIndex;
+            //    bool isMaster = roxieServer.getPropBool("@master", false); // required in the config file
+            //    DBGLOG("[Roxie][main] isMaster=%s", isMaster ? "True" : "False");
+            //    if (isMaster)
+            //        roxieClusterManager->enableMaster();
+            //}
             if (roxieServer.getPropBool("@master", false))
             {
                 roxieClusterManager->setMaster(iptext);
             }
-            if (traceLevel > 3)
-                DBGLOG("Roxie server %u is at %s", nodeIndex, iptext);
-            DBGLOG("Roxie server %u is at %s", nodeIndex, iptext);
-            DBGLOG("[Roxie] myNodeIndex=%u", nodeIndex);
+            //if (traceLevel > 3)
+            //    DBGLOG("Roxie server %u is at %s", nodeIndex, iptext);
+            //DBGLOG("Roxie server %u is at %s", nodeIndex, iptext);
+            //DBGLOG("[Roxie] myNodeIndex=%u", nodeIndex);
         }
-        if (myNodeIndex == -1)
-            throw MakeStringException(MSGAUD_operator, ROXIE_INVALID_TOPOLOGY, "Invalid topology file - current node is not in server list");
+        //if (myNodeIndex == -1)
+        //    throw MakeStringException(MSGAUD_operator, ROXIE_INVALID_TOPOLOGY, "Invalid topology file - current node is not in server list");
 
+        if (!roxieClusterManager->hasMaster())
+            throw MakeStringException(MSGAUD_operator, ROXIE_INVALID_TOPOLOGY, "Needs to specify the master Roxie node");
+        
+		//roxieClusterManager->start();
+		if (roxieClusterManager->isMasterNode())
+		{
+			DBGLOG("Enabling master service");
+			roxieClusterManager->enableMasterService();
+		}
+        else
+		{ 
+			DBGLOG("Joing the Roxie cluster");
+            roxieClusterManager->joinRoxieCluster();
+		}
+        
+        myNodeIndex = roxieClusterManager->getSelf().getNodeIndex(); // has to be assigned by the master
+		DBGLOG("[Roxie][main] myNodexIndex=%u", myNodeIndex);
+        
         // Set multicast base addresses - must be done before generating slave channels
 
         if (roxieMulticastEnabled && !localSlave)
@@ -983,8 +1000,10 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
         if (!numDataCopies)
             throw MakeStringException(MSGAUD_operator, ROXIE_INVALID_TOPOLOGY, "Invalid topology file - numDataCopies should be > 0");
         unsigned channelsPerNode = topology->getPropInt("@channelsPerNode", 1);
-        unsigned numNodes = getNumNodes();
-        const char *slaveConfig = topology->queryProp("@slaveConfig");
+        //unsigned numNodes = getNumNodes();
+        unsigned numNodes = roxieClusterManager->getNumNodes();
+        //const char *slaveConfig = topology->queryProp("@slaveConfig");
+        const char *slaveConfig = "random";
         if (!slaveConfig)
             slaveConfig = "simple";
         if (strnicmp(slaveConfig, "cyclic", 6) == 0)
@@ -1019,6 +1038,20 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
                     channel += numNodes;
                 }
             }
+        }
+        else if (strnicmp(slaveConfig, "random", 6) == 0)
+        {
+			DBGLOG("[Roxie] channels by random assign");
+			numChannels = roxieClusterManager->getClusterSize();
+			IChannelGroupList channelGroupList = roxieClusterManager->getChannelGroups();
+			DBGLOG("[1]");
+			ForEachItemIn(idx, channelGroupList)
+			{
+				DBGLOG("[2] idx=%u", idx);
+			    IChannelGroupPtr channelGroupPtr = channelGroupList.element(idx);
+				DBGLOG("[3] channelGroupPtr=%p", channelGroupPtr);
+				addChannel(myNodeIndex, channelGroupPtr->getChannelIndex(), channelGroupPtr->getChannelLevel());
+			}
         }
         else    // 'Full redundancy' or 'simple' mode
         {
@@ -1184,7 +1217,6 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
         E->Release();
     }
 
-    roxieClusterManager.clear();
     roxieMetrics.clear();
     stopPerformanceMonitor();
     ::Release(globalPackageSetManager);
