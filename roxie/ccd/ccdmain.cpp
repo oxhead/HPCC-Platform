@@ -938,6 +938,7 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
         }
 
 		roxieClusterManager = createRoxieClusterManager();
+		roxieMasterProxy = createRoxieMasterProxy();
         Owned<IPropertyTreeIterator> roxieServers = topology->getElements("./RoxieServerProcess");
         ForEach(*roxieServers)
         {
@@ -1007,6 +1008,9 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
         const char *slaveConfig = "random";
         if (!slaveConfig)
             slaveConfig = "simple";
+		DBGLOG("[Roxie][main] numDataCopies=%u", numDataCopies);
+		DBGLOG("[Roxie][main] channelsPerNode=%u", channelsPerNode);
+		DBGLOG("[Roxie][main] numNodes=%u", numNodes);
         if (strnicmp(slaveConfig, "cyclic", 6) == 0)
         {
             numChannels = numNodes;
