@@ -1463,7 +1463,7 @@ private:
     void doMain(const char *runQuery)
     {
         StringBuffer rawText(runQuery);
-        DBGLOG("[Roxie] rawText=%s", rawText.str());
+        DBGLOG("[Roxie][SocketWorker] rawText=%s", rawText.str());
         unsigned priority = (unsigned) -2;
         unsigned memused = 0;
         Owned<CascadeManager> cascade;
@@ -1636,8 +1636,10 @@ readAnother:
             }
             else if (isAdmin)
             {
+                DBGLOG("[Roxie][Worker] isAdmin");
                 Owned<IPropertyTree> cmdJson;
                 cmdJson.setown(createPTreeFromJSONString(rawText.str(), ipt_caseInsensitive, (PTreeReaderOptions)(defaultXmlReadFlags | ptr_ignoreNameSpaces)));
+                DBGLOG("[Roxie][Worker] complete Json Parse");
                 roxieMasterProxy->handleRequest(cmdJson.get(), client.get());
             }
             else
