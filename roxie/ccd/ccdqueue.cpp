@@ -87,6 +87,7 @@ void joinMulticastChannel(unsigned channel)
 {
     if (roxieMulticastEnabled && !localSlave)
     {
+		DBGLOG("[Roxie][Queue] joinMulticastChannel");
         IpAddress multicastIp;
         getChannelIp(multicastIp, channel);
         StringBuffer ipText;
@@ -100,6 +101,26 @@ void joinMulticastChannel(unsigned channel)
         if (traceLevel)
             DBGLOG("Joined multicast channel %d (%s)", channel, epStr.str());
     }
+}
+
+void leaveMulticastChannel(unsigned channel)
+{
+	if (roxieMulticastEnabled && !localSlave)
+	{
+		DBGLOG("[Roxie][Queue] leaveMulticastChannel");
+		IpAddress multicastIp;
+		getChannelIp(multicastIp, channel);
+		StringBuffer ipText;
+		multicastIp.getIpText(ipText);
+		DBGLOG("[Roxie][Multicast] channel %u -> ip=%s", channel, ipText.str());
+		SocketEndpoint ep(ccdMulticastPort, multicastIp);
+		StringBuffer epStr;
+		ep.getUrlStr(epStr);
+		if (!multicastSocket->leave_multicast_group(ep))
+			throw MakeStringException(ROXIE_MULTICAST_ERROR, "Failed to join multicast channel %d (%s)", channel, epStr.str());
+		if (traceLevel)
+			DBGLOG("Left multicast channel %d (%s)", channel, epStr.str());
+	}
 }
 
 void openMulticastSocket()
@@ -182,7 +203,8 @@ size32_t channelWrite(unsigned channel, void const* buf, size32_t size)
 
 StringBuffer &RoxiePacketHeader::toString(StringBuffer &ret) const
 {
-    const IpAddress &serverIP = getNodeAddress(serverIdx);
+	const IpAddress &serverIP = roxieClusterManager->getNode(serverIdx)->getIpAddress();
+    //const IpAddress &serverIP = getNodeAddress(serverIdx);
     ret.appendf("uid=" RUIDF " activityId=", uid);
     switch(activityId & ~ROXIE_PRIORITY_MASK)
     {
@@ -700,7 +722,8 @@ struct PingRecord
 void doPing(IRoxieQueryPacket *packet, const IRoxieContextLogger &logctx)
 {
     const RoxiePacketHeader &header = packet->queryHeader();
-    const IpAddress &serverIP = getNodeAddress(header.serverIdx);
+	const IpAddress &serverIP = roxieClusterManager->getNode(header.serverIdx)->getIpAddress();
+    //const IpAddress &serverIP = getNodeAddress(header.serverIdx);
     unsigned contextLength = packet->getContextLength();
     if (contextLength != sizeof(PingRecord))
     {
@@ -2775,7 +2798,8 @@ class PingTimer : public Thread
             DBGLOG("PING sent");
 
         PingRecord data;
-        data.senderIP.ipset(getNodeAddress(myNodeIndex));
+		data.senderIP.ipset(roxieClusterManager->getSelf()->getIpAddress());
+        //data.senderIP.ipset(getNodeAddress(myNodeIndex));
         data.tick = usTick();
         memcpy(finger, &data, sizeof(PingRecord));
         Owned<IRoxieQueryPacket> packet = createRoxiePacket(packetData, packetSize);
