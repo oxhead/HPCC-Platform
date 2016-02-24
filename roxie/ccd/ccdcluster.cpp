@@ -7,18 +7,19 @@
 
 #include "jlog.hpp"
 #include "jptree.hpp"
+#include "jsocket.hpp"
 
 #include "ccd.hpp"
 #include "ccdcontext.hpp"
 #include "ccdcluster.hpp"
 
-class ChannelGroup : public IChannelGroup
+class Channel : public IChannel
 {
 private:
 	unsigned index = -1; // maybe a problem for negative?
 	unsigned level = -1;
 public:
-	ChannelGroup(unsigned index, unsigned level = 0) : index(index), level(level)
+	Channel(unsigned index, unsigned level = 0) : index(index), level(level)
 	{
 	}
 	unsigned getChannelIndex()
@@ -37,6 +38,7 @@ private:
     unsigned nodeIndex = -1;
     const char* address;
     unsigned short port;
+	IpAddress ipAddress;
 
 public:
 
@@ -47,11 +49,12 @@ public:
     RoxieNode(unsigned nodeIndex, const char* address, unsigned short port)
     {
         this->nodeIndex = nodeIndex;
+		this->ipAddress.ipset(address);
         this->address = address;
         this->port = port;
     }
 
-    virtual unsigned getNodeIndex() const
+    virtual unsigned getNodeIndex()
     {
         return this->nodeIndex;
     }
@@ -61,6 +64,11 @@ public:
         return this->address;
     }
 
+	virtual const IpAddress &getIpAddress()
+	{
+		return this->ipAddress;
+	}
+
 };
 
 class RoxieClusterManager : public IRoxieClusterManager, public Thread
@@ -68,58 +76,79 @@ class RoxieClusterManager : public IRoxieClusterManager, public Thread
 private:
     bool masterServiceEnabled = false;
 
-    IRoxieNode *selfNode;
-    IRoxieNode *masterNode;
-	IRoxieNodeMap clusterNodes;
+	// the variables related to member nodes in a roxie clustler
+	// [0, 1, 2, 3, 4, 5, ......, n]
+	// 0 = self
+	// masterIndex = the index of the master node
+	// selfIndex = the index of itself
+	// note: the masterIndex might change overtime in the future
+	unsigned masterIndex;
+	unsigned selfIndex;
+	IRoxieNodeList nodeList;
+	IRoxieNodeMap nodeMap; // for host to IRoxieNode lookup, and each node maintins the same copy
+	IRoxieNode *masterNode;
 
-    // channel related variables
-    //unsigned numSlaves[MAX_CLUSTER_SIZE];
-    //unsigned replicationLevel[MAX_CLUSTER_SIZE];
-    IPropertyTree* ccdChannels;
-	ChannelMap channelMap;
+	// the variables related to the channels for multicast groups
+	IChannelList channelList;
 	ChannelToNodeListMap channelToNodeListMap;
-
+	
     // thread related variables
     bool running;
 
 public:
     
-    RoxieClusterManager() : Thread("RoxieClusterManager")
+    RoxieClusterManager() : Thread("RoxieClusterManager"), selfIndex(0), masterIndex(0), running(false)
     {
+		DBGLOG("[Roxie][Manager] initializing...");
+		this->nodeList.ensure(1024); // initialize the list?
+		this->channelList.ensure(128);
         // the self node
-        IpAddress ip = queryHostIP(); // call jsocket API
-        StringBuffer ipString;
-        ip.getIpText(ipString);
-        this->selfNode = new RoxieNode(1, ipString.str(), 9876); // temparary solution
-
-        // cluster related
-
-        // thread related
-        this->running = false;
+		IpAddress ip = queryHostIP(); // call jsocket API
+		StringBuffer ipString;
+		ip.getIpText(ipString);
+		this->nodeList.add(new RoxieNode(0, ipString.str(), 9876), 0);
+		DBGLOG("\tself=%s", this->nodeList[0]->getAddress());
+		//this->nodeMap.setValue(ipString.str(), this->nodeList[0]);
     }
     
+	virtual const char *_getHost()
+	{
+		IpAddress ip = queryHostIP(); // call jsocket API
+		StringBuffer *ipString = new StringBuffer;
+		ip.getIpText(*ipString);
+		const char *host = ipString->str();
+		//delete ipString;
+		return host;
+	}
     virtual IRoxieNode &addNode(const char *nodeAddress)
     {
         DBGLOG("[Roxie][Cluster] add node -> host=%s", nodeAddress);
-        unsigned clusterSize = this->clusterNodes.ordinality();
-        DBGLOG("[Roxie][Cluster] current cluster size = %u", clusterSize);
+        DBGLOG("[Roxie][Cluster] current cluster size = %u", this->getClusterSize());
 
-        if (!this->clusterNodes.getValue(nodeAddress))
+		// need to test whether this API work?
+        if (!this->nodeMap.getValue(nodeAddress))
         {
-            unsigned newNodeId = this->clusterNodes.ordinality() + 1;
+			DBGLOG("\tnode does not exist, so adding to the record");
+			unsigned newNodeId = this->getClusterSize() + 1; // index starts from one, is it safe?
             IRoxieNodePtr roxieNodePtr = new RoxieNode(newNodeId, nodeAddress, 9876); // fixed port for now
-            this->clusterNodes.setValue(nodeAddress, roxieNodePtr);
+			this->nodeList.add(roxieNodePtr, newNodeId);
+            this->nodeMap.setValue(nodeAddress, roxieNodePtr);
+            unsigned nodeIndex = addRoxieNode(nodeAddress);
+			DBGLOG("\tnodeList=%u", this->nodeList.length());
+			DBGLOG("\tclusterNodes=%u", this->nodeMap.count());
+			DBGLOG("\troxieNodes=%u", nodeIndex);
         }
-        return **(this->clusterNodes.getValue(nodeAddress));
+        return **(this->nodeMap.getValue(nodeAddress));
     }
 
 	virtual  void removeNode(const char *nodeAddress)
     {
     }
 
-	virtual  unsigned getNumNodes()
+	virtual  unsigned getNumOfNodes()
     {
-        return this->clusterNodes.ordinality();
+		return this->nodeMap.count();
+		//return this->nodeList.length() - 1; // the first element is itself, duplicated counting
     }
 
 	virtual  void printTopology()
@@ -146,24 +175,23 @@ public:
     {
         DBGLOG("[Roxie][API] enableMasterService");
 
-		// initialize the channel mapping table
-		for (unsigned i = 1; i <= 5; i++)
+		// the following code works only for the first initialization
+		// initialize the channel mapping table	
+		for (unsigned i = 0; i <= 2; i++)
 		{
-			IChannelGroupPtr channelGroupPtr = new ChannelGroup {i}; // requires using new?
-			DBGLOG("\tchannelGroupPtr -> p=%p", channelGroupPtr);
+			IChannelPtr channelPtr = new Channel {i}; // requires using new?
+			DBGLOG("\tchannelPtr -> p=%p", channelPtr);
 			//DBGLOG("[Roxie][enableMasterService] channelGroup -> index=%u, level=%u", channelGroupPtr->getChannelIndex(), channelGroupPtr->getChannelLevel());
 			IRoxieNodeListPtr roxieNodeListPtr = new IRoxieNodeList();
-			this->channelMap.setValue(channelGroupPtr->getChannelIndex(), channelGroupPtr);
-			this->channelToNodeListMap.setValue(channelGroupPtr->getChannelIndex(), roxieNodeListPtr);
+			this->channelList.append(channelPtr);
+			this->channelToNodeListMap.setValue(channelPtr->getChannelIndex(), roxieNodeListPtr);
         }
 
-		// add this master node itself
-        IpAddress ip = queryHostIP();
-        StringBuffer ipString;
-        ip.getIpText(ipString);
-        this->addNode(ipString.str());
+		IRoxieNode &selfNode = this->addNode(this->_getHost());
+		this->masterIndex = selfNode.getNodeIndex();
+		this->selfIndex = selfNode.getNodeIndex();
         this->masterServiceEnabled = true;
-        this->_load_testing_data();
+        //this->_load_testing_data();
     }
     
 	virtual  void disableMasterService()
@@ -179,6 +207,7 @@ public:
     
 	virtual bool isMasterNode()
     {
+		//return this->selfIndex == this->masterIndex;
 		IpAddress ip(this->getMaster()->getAddress());
 		return ip.isLocal();
     }
@@ -186,7 +215,7 @@ public:
 	virtual void setMaster(const char *host)
     {
         DBGLOG("[Roxie][Cluster] set master -> %s", host);
-        this->masterNode = new RoxieNode(1, host, 9876);
+        this->masterNode = new RoxieNode(0, host, 9876);
     }
     
 	virtual IRoxieNode *getMaster()
@@ -199,26 +228,43 @@ public:
         return this->masterNode != NULL;
     }
 
-	virtual IRoxieNode &getSelf()
+	virtual IRoxieNode *getSelf()
     {
-        return *(this->selfNode);
+		return this->nodeList[this->selfIndex];
     }
 
-	virtual IRoxieNodeMap getNodes()
-    {
-        return this->clusterNodes;
-    }
+	virtual IRoxieNode *getNode(unsigned nodeIndex)
+	{
+		// need to check the index range
+		DBGLOG("[Roxie][API] getnode");
+		DBGLOG("\tnodeIndex=%u, total=%u", nodeIndex, this->nodeList.length());
+		return this->nodeList[nodeIndex];
+	}
+
+
+	virtual const IRoxieNodeMap &getNodes()
+	{
+		return this->nodeMap;
+	}
 
 	virtual unsigned getClusterSize()
 	{
-		return this->clusterNodes.count();
+		return this->getNumOfNodes();
 	}
 
-	virtual IChannelGroupList getChannelGroups()
+
+	virtual unsigned getNumOfChannels()
+	{
+		return this->channelList.length() - 1; // the channel 0 is for local used only?
+	}
+
+	virtual const IChannelList &getChannelList()
 	{
 		// only works for the master node now
 		// need to get this information for the master node
 
+		return this->channelList;
+		/*
 		DBGLOG("[Roxie][API] getChannelGroups");
 		HashIterator iter(this->channelMap);
 		DBGLOG("\t[pre-1]");
@@ -237,13 +283,41 @@ public:
 			//DBGLOG("[Roxie][Cluster] channelGroupPtr=%p (%p)", k, &k);
 		}
 		return channelGroupList;
+		*/
     }
 
 	virtual void joinRoxieCluster()
     {
-        // do http request to the master server
-        while (true)
-            sleep(1000); //dangerous
+		DBGLOG("[Roxie][API] joinRoxieCluster");
+
+		IPropertyTree *jsonTree = createPTree();
+		IPropertyTree *paramTree = createPTree();
+		paramTree->setProp("./host", this->getSelf()->getAddress());
+		jsonTree->setProp("./action", "join");
+		jsonTree->setPropTree("./params", paramTree);
+
+		DBGLOG("finished creating json tree");
+		StringBuffer content;
+		toJSON(jsonTree, content);
+		DBGLOG("content=%s", content.str());
+
+		StringBuffer cmdRequest;
+		cmdRequest.append("CMD /proxy HTTP/1.1\nContent-Length: ");
+		cmdRequest.appendf("Content-Length: %u", content.length());
+		cmdRequest.append("\n");
+		cmdRequest.append(content.str());
+		DBGLOG("req=%s", cmdRequest.str());
+
+		SocketEndpoint ep(this->getMaster()->getAddress(), 9876);
+		Owned<ISocket> socket;
+		socket.setown(ISocket::connect(ep));
+		CSafeSocket sc(socket);
+		DBGLOG("socket connection is ready");
+		sc.write(cmdRequest.str(), cmdRequest.length());
+        
+		// do http request to the master server
+        // while (true)
+        //    sleep(1000); //dangerous
     }
 
 	virtual void start()
@@ -302,6 +376,7 @@ public:
 
 	virtual void handleRequest(IPropertyTree *request, SafeSocket *client)
     {
+        DBGLOG("[Roxie][Proxy] recieved a request");
         const char *action = request->queryProp("./action");
         DBGLOG("[Roxie][Worker] action=%s", action);
 
@@ -321,7 +396,7 @@ public:
         // dispatch command
         if (strnicmp(action, "echo", 4) == 0)
         {
-            this->echo(client);
+            this->echo(client, request);
         }
         else if (strnicmp(action, "join", 4) == 0)
         {
@@ -345,9 +420,16 @@ public:
     }
 
 private:
-    void echo(SafeSocket *client)
+    void echo(SafeSocket *client, IPropertyTree *request)
     {
-        client->write("ECHOECHO", 8); // only echo will not get flushed
+        //client->write("ECHOECHO", 8); // only echo will not get flushed
+		StringBuffer sb;
+		toXML(request, sb);
+		sb = sb.trim();
+		DBGLOG("[Roxie][Proxy][echo] length=%u", sb.length());
+		DBGLOG("[Roxie][Proxy][echo] content=%s", sb.str());
+		client->write(sb.str(), sb.length());
+		client->flush();
     }
 
     void join(SafeSocket *client, const char *host)

@@ -321,7 +321,7 @@ void addChannel(unsigned nodeNumber, unsigned channel, unsigned level)
     numSlaves[channel]++;
     if (nodeNumber == myNodeIndex && channel > 0)
     {
-        assertex(channel <= numChannels);
+        //assertex(channel <= numChannels);
         assertex(!replicationLevel[channel]);
         replicationLevel[channel] = level;
         addSlaveChannel(channel, level);
@@ -329,8 +329,9 @@ void addChannel(unsigned nodeNumber, unsigned channel, unsigned level)
     if (!localSlave)
     {
         DBGLOG("[Roxie] is not local slave");
-        addEndpoint(channel, getNodeAddress(nodeNumber), ccdMulticastPort);
-    }
+        //addEndpoint(channel, getNodeAddress(nodeNumber), ccdMulticastPort);
+		addEndpoint(channel, roxieClusterManager->getNode(nodeNumber)->getIpAddress(), ccdMulticastPort);
+	}
 }
 
 extern void doUNIMPLEMENTED(unsigned line, const char *file)
@@ -973,13 +974,13 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
 			DBGLOG("Enabling master service");
 			roxieClusterManager->enableMasterService();
 		}
-        else
-		{ 
+		else
+		{
 			DBGLOG("Joing the Roxie cluster");
-            roxieClusterManager->joinRoxieCluster();
+			roxieClusterManager->joinRoxieCluster();
 		}
-        
-        myNodeIndex = roxieClusterManager->getSelf().getNodeIndex(); // has to be assigned by the master
+	    
+        myNodeIndex = roxieClusterManager->getSelf()->getNodeIndex(); // has to be assigned by the master
 		DBGLOG("[Roxie][main] myNodexIndex=%u", myNodeIndex);
         
         // Set multicast base addresses - must be done before generating slave channels
@@ -1002,7 +1003,7 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
             throw MakeStringException(MSGAUD_operator, ROXIE_INVALID_TOPOLOGY, "Invalid topology file - numDataCopies should be > 0");
         unsigned channelsPerNode = topology->getPropInt("@channelsPerNode", 1);
         //unsigned numNodes = getNumNodes();
-        unsigned numNodes = roxieClusterManager->getNumNodes();
+        unsigned numNodes = roxieClusterManager->getClusterSize();
         //const char *slaveConfig = topology->queryProp("@slaveConfig");
         const char *slaveConfig = "random";
         if (!slaveConfig)
@@ -1046,15 +1047,16 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
         else if (strnicmp(slaveConfig, "random", 6) == 0)
         {
 			DBGLOG("[Roxie] channels by random assign");
-			numChannels = roxieClusterManager->getClusterSize();
-			IChannelGroupList channelGroupList = roxieClusterManager->getChannelGroups();
+			//numChannels = roxieClusterManager->getClusterSize();
+			numChannels = roxieClusterManager->getNumOfChannels();
+			const IChannelList channelList = roxieClusterManager->getChannelList();
 			DBGLOG("[1]");
-			ForEachItemIn(idx, channelGroupList)
+			ForEachItemIn(idx, channelList)
 			{
 				DBGLOG("[2] idx=%u", idx);
-			    IChannelGroupPtr channelGroupPtr = channelGroupList.element(idx);
-				DBGLOG("[3] channelGroupPtr=%p", channelGroupPtr);
-				addChannel(myNodeIndex, channelGroupPtr->getChannelIndex(), channelGroupPtr->getChannelLevel());
+			    IChannelPtr channelPtr = channelList.element(idx);
+				DBGLOG("[3] channelPtr=%p", channelPtr);
+				addChannel(myNodeIndex, channelPtr->getChannelIndex(), channelPtr->getChannelLevel());
 			}
         }
         else    // 'Full redundancy' or 'simple' mode
@@ -1146,7 +1148,8 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
                 if (!roxiePort)
                 {
                     roxiePort = port;
-                    ownEP.set(roxiePort, ip);
+					ownEP.set(roxiePort, roxieClusterManager->getNode(myNodeIndex)->getAddress());
+                    //ownEP.set(roxiePort, getNodeAddress(myNodeIndex));
                 }
                 bool suspended = roxieFarm.getPropBool("@suspended", false);
                 Owned <IHpccProtocolListener> roxieServer;
