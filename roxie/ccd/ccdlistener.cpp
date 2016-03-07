@@ -179,9 +179,11 @@ class CascadeManager : public CInterface
 
     void connectChild(unsigned idx)
     {
-        if (idx < getNumNodes())
+        //if (idx < getNumNodes())
+		if (idx <= roxieClusterManager->getClusterSize())
         {
-            SocketEndpoint ep(roxiePort, getNodeAddress(idx));
+           // SocketEndpoint ep(roxiePort, getNodeAddress(idx));
+			SocketEndpoint ep(roxiePort, roxieClusterManager->getNode(idx)->getIpAddress());
             try
             {
                 if (traceLevel)
@@ -446,11 +448,18 @@ public:
         if (traceLevel > 5)
             DBGLOG("doLockGlobal got %d locks", locksGot);
         reply.append("<Lock>").append(locksGot).append("</Lock>");
-        reply.append("<NumServers>").append(getNumNodes()).append("</NumServers>");
-        if (lockAll)
-            return locksGot == getNumNodes();
-        else
-            return locksGot > getNumNodes()/2;
+        //reply.append("<NumServers>").append(getNumNodes()).append("</NumServers>");
+		reply.append("<NumServers>").append(roxieClusterManager->getClusterSize()).append("</NumServers>");
+		// TODO this can be problematic!!
+        //if (lockAll)
+        //    return locksGot == getNumNodes();
+        //else
+        //    return locksGot > getNumNodes()/2;
+		if (lockAll)
+			return locksGot == roxieClusterManager->getClusterSize();
+		else
+			return locksGot > roxieClusterManager->getClusterSize() / 2;
+
     }
 
     enum CascadeMergeType { CascadeMergeNone, CascadeMergeStats, CascadeMergeQueries };
@@ -1640,7 +1649,7 @@ readAnother:
                 Owned<IPropertyTree> cmdJson;
                 cmdJson.setown(createPTreeFromJSONString(rawText.str(), ipt_caseInsensitive, (PTreeReaderOptions)(defaultXmlReadFlags | ptr_ignoreNameSpaces)));
                 DBGLOG("[Roxie][Worker] complete Json Parse");
-                roxieMasterProxy->handleRequest(cmdJson.get(), client.get());
+                roxieMasterProxy->handleRequest(cmdJson.get(), client->querySocket());
             }
             else
             {
@@ -1931,6 +1940,12 @@ readAnother:
             }
         }
 #endif
+
+		if (isAdmin)
+		{
+			return;
+		}
+
         if (isHTTP)
         {
             try

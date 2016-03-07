@@ -10,15 +10,17 @@
 
 
 #include "jsocket.hpp"
-#include "roxiehelper.hpp"
+//#include "roxiehelper.hpp"
 //#include "ccd.hpp"
 //#include "ccdcontext.hpp"
 
 class IRoxieNode
 {
 public:
+	virtual void setNodeIndex(unsigned nodeIndex) = 0;
     virtual unsigned getNodeIndex() = 0;
-    virtual const char *getAddress() = 0;
+    //virtual StringBuffer &getAddress(StringBuffer &sb) = 0;
+	virtual const char *getAddress() = 0;
 	virtual const IpAddress &getIpAddress() = 0;
 };
 
@@ -78,7 +80,7 @@ public:
 class IRoxieMasterProxy
 {
 public:
-	virtual void handleRequest(IPropertyTree *request, SafeSocket *client) = 0;
+	virtual void handleRequest(IPropertyTree *request, ISocket *client) = 0;
 };
 
 

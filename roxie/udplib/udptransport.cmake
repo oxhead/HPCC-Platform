@@ -43,7 +43,8 @@ HPCC_ADD_EXECUTABLE ( udptransport ${SRCS} )
 target_link_libraries ( udptransport 
          jlib
          roxiemem 
-         udplib 
+         udplib
+         ccd 
     )
 
 
