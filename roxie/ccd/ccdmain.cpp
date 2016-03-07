@@ -669,6 +669,7 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
         }
 
         restarts = globals->getPropInt("--restarts", 0);
+		DBGLOG("[Roxie][main] restarts=%d", restarts);
         const char *preferredSubnet = topology->queryProp("@preferredSubnet");
         if (preferredSubnet)
         {
@@ -679,6 +680,7 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
         }
         if (restarts)
         {
+			DBGLOG("[Roxie][main] restarting...");
             if (traceLevel)
                 DBGLOG("Roxie restarting: restarts = %d build = %s", restarts, BUILD_TAG);
             setStartRuid(restarts);
@@ -1195,8 +1197,8 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
             }
             writeSentinelFile(sentinelFile);
             DBGLOG("Waiting for queries");
-            if (pingInterval)
-                startPingTimer();
+            //if (pingInterval)
+            //    startPingTimer();
             LocalIAbortHandler abortHandler(waiter);
             waiter.wait();
         }

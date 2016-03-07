@@ -22,6 +22,7 @@
 #include "jisem.hpp"
 #include "jsocket.hpp"
 #include "roxiemem.hpp"
+#include "ccdcluster.hpp"
 
 #ifdef _WIN32
 #ifdef UDPLIB_EXPORTS
@@ -139,3 +140,5 @@ extern UDPLIB_API bool udpInlineCollation;
 extern UDPLIB_API bool udpSnifferEnabled;
 extern UDPLIB_API bool udpSendCompletedInData;
 #endif
+
+extern IRoxieClusterManager *roxieClusterManager;

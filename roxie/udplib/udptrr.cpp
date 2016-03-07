@@ -101,7 +101,8 @@ class CReceiveManager : public CInterface, implements IReceiveManager
                 assert(!flowSocket);
                 destNodeIndex = _destNodeIndex;
                 myNodeIndex = _myNodeIndex;
-                SocketEndpoint ep(port, getNodeAddress(destNodeIndex));
+                // ep(port, getNodeAddress(destNodeIndex));
+				SocketEndpoint ep(port, roxieClusterManager->getNode(destNodeIndex)->getAddress());
                 flowSocket = ISocket::udp_connect(ep);
                 missingTableSize = _missingTableSize;
                 missing = new unsigned[_missingTableSize];
@@ -291,6 +292,7 @@ class CReceiveManager : public CInterface, implements IReceiveManager
             unsigned missingTableSize = maxSlotsPerSender;
             if (missingTableSize > MAX_RESEND_TABLE_SIZE)
                 missingTableSize = MAX_RESEND_TABLE_SIZE;
+			// TODO change the loop here
             for (unsigned i = 0; i < maxSenders; i++)
             {
                 sendersTable[i].init(i, parent.myNodeIndex, parent.send_flow_port, missingTableSize);
@@ -817,10 +819,14 @@ public:
         input_queue_size = queue_size;
         input_queue = new queue_t(queue_size);
         data = new receive_data(*this);
-        manager = new ReceiveFlowManager(*this, getNumNodes(), m_slot_pr_client);
+		// TODO how to support elastic?
+        //manager = new ReceiveFlowManager(*this, getNumNodes(), m_slot_pr_client);
+		manager = new ReceiveFlowManager(*this, roxieClusterManager->getClusterSize(), m_slot_pr_client);
         receive_flow = new receive_receive_flow(*this, server_flow_port);
+		// TODO how to support elastic?
         if (udpSnifferEnabled)
-            sniffer = new receive_sniffer(*this, snif_port, multicast_ip, getNumNodes());
+            //sniffer = new receive_sniffer(*this, snif_port, multicast_ip, getNumNodes());
+			sniffer = new receive_sniffer(*this, snif_port, multicast_ip, roxieClusterManager->getClusterSize());
 
         running = true;
         collatorThread.start();
