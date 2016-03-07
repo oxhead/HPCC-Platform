@@ -235,7 +235,8 @@ public:
         activityId = _remoteId.activityId;
         queryHash = _remoteId.queryHash;
         uid = _uid;
-        serverIdx = myNodeIndex;
+        //serverIdx = myNodeIndex;
+		serverIdx = roxieClusterManager->getSelf()->getNodeIndex();
         channel = _channel;
         overflowSequence = _overflowSequence;
         continueSequence = 0;

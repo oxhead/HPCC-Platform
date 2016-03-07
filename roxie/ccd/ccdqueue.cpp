@@ -723,6 +723,9 @@ void doPing(IRoxieQueryPacket *packet, const IRoxieContextLogger &logctx)
 {
     const RoxiePacketHeader &header = packet->queryHeader();
 	const IpAddress &serverIP = roxieClusterManager->getNode(header.serverIdx)->getIpAddress();
+	StringBuffer sb;
+	serverIP.getIpText(sb);
+	DBGLOG("[Roxie][queue] doPing -> serverIP=%s", sb.str());
     //const IpAddress &serverIP = getNodeAddress(header.serverIdx);
     unsigned contextLength = packet->getContextLength();
     if (contextLength != sizeof(PingRecord))
@@ -1068,6 +1071,7 @@ public:
         Owned<IQueryFactory> queryFactory = getQueryFactory(queryHash, channel);
         if (!queryFactory && logctx.queryWuid())
         {
+			DBGLOG("[Roxie][Queue] connecting to Dali...");
             Owned <IRoxieDaliHelper> daliHelper = connectToDali();
             Owned<IConstWorkUnit> wu = daliHelper->attachWorkunit(logctx.queryWuid(), NULL);
             queryFactory.setown(createSlaveQueryFactoryFromWu(wu, channel));
@@ -1817,9 +1821,11 @@ public:
         unsigned dataPort = topology->getPropInt("@dataPort", CCD_DATA_PORT);
         unsigned clientFlowPort = topology->getPropInt("@clientFlowPort", CCD_CLIENT_FLOW_PORT);
         unsigned snifferPort = topology->getPropInt("@snifferPort", CCD_SNIFFER_PORT);
-        receiveManager.setown(createReceiveManager(serverFlowPort, dataPort, clientFlowPort, snifferPort, snifferIp, udpQueueSize, udpMaxSlotsPerClient, myNodeIndex));
-        sendManager.setown(createSendManager(serverFlowPort, dataPort, clientFlowPort, snifferPort, snifferIp, udpSendQueueSize, fastLaneQueue ? 3 : 2, udpResendEnabled ? udpMaxSlotsPerClient : 0, bucket, myNodeIndex));
-        running = false;
+		//receiveManager.setown(createReceiveManager(serverFlowPort, dataPort, clientFlowPort, snifferPort, snifferIp, udpQueueSize, udpMaxSlotsPerClient, myNodeIndex));
+        receiveManager.setown(createReceiveManager(serverFlowPort, dataPort, clientFlowPort, snifferPort, snifferIp, udpQueueSize, udpMaxSlotsPerClient, roxieClusterManager->getSelf()->getNodeIndex()));
+        //sendManager.setown(createSendManager(serverFlowPort, dataPort, clientFlowPort, snifferPort, snifferIp, udpSendQueueSize, fastLaneQueue ? 3 : 2, udpResendEnabled ? udpMaxSlotsPerClient : 0, bucket, myNodeIndex));
+		sendManager.setown(createSendManager(serverFlowPort, dataPort, clientFlowPort, snifferPort, snifferIp, udpSendQueueSize, fastLaneQueue ? 3 : 2, udpResendEnabled ? udpMaxSlotsPerClient : 0, bucket, roxieClusterManager->getSelf()->getNodeIndex()));
+		running = false;
     }
 
     CriticalSection crit;
@@ -2821,6 +2827,7 @@ public:
 
     virtual int run()
     {
+		DBGLOG("[Roxie][PingTimer] running...");
         rowManager.setown(roxiemem::createRowManager(1, NULL, queryDummyContextLogger(), NULL));
         mc.setown(ROQ->queryReceiveManager()->createMessageCollator(rowManager, RUID_PING));
         unsigned pingsReceived = 0;

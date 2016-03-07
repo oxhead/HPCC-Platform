@@ -59,11 +59,14 @@ MODULE_EXIT()
 
 static IpAddressArray nodeTable;
 
+// TODO get rid of this or leverage
 extern UDPLIB_API const IpAddress &getNodeAddress(unsigned index)
 {
-    return nodeTable.item(index);
+	return roxieClusterManager->getNode(index)->getIpAddress();
+    //return nodeTable.item(index);
 }
 
+// TODO do we need here?
 extern UDPLIB_API unsigned addRoxieNode(const char *ipString)
 {
     IpAddress ip(ipString);

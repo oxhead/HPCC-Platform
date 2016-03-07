@@ -377,7 +377,8 @@ public:
         assert(!initialized);
         maxRetryData = _maxRetryData;
         numQueues = _numQueues;
-        const IpAddress &ip = getNodeAddress(destNodeIndex);
+        //const IpAddress &ip = getNodeAddress(destNodeIndex);
+		const IpAddress &ip = roxieClusterManager->getNode(destNodeIndex)->getIpAddress();
         if (!ip.isNull())
         {
             try 
@@ -924,13 +925,18 @@ public:
 #ifndef _WIN32
         setpriority(PRIO_PROCESS, 0, -3);
 #endif
-        numNodes = getNumNodes();
+        //numNodes = getNumNodes();
+		numNodes = roxieClusterManager->getClusterSize();
         receive_flow_port = client_flow_port;
         send_flow_port = server_flow_port;
         data_port = d_port;
         myNodeIndex = _myNodeIndex;
         numQueues = _numQueues;
-        receiversTable = new UdpReceiverEntry[numNodes];
+		// TODO this needs to support elastic operation
+        //receiversTable = new UdpReceiverEntry[numNodes];
+		unsigned nn = roxieClusterManager->getClusterSize();
+		DBGLOG("[Roxie][udptrs] numNodes=%d", nn);
+		receiversTable = new UdpReceiverEntry[nn];
         if (maxRetryData > MAX_RESEND_TABLE_SIZE)
             maxRetryData = MAX_RESEND_TABLE_SIZE;
         for (unsigned i = 0; i < numNodes; i++)
@@ -955,7 +961,9 @@ public:
     {
         // NOTE: takes ownership of the DataBuffer
         assert(queue < numQueues);
-        assert(destNodeIndex < numNodes);
+        //assert(destNodeIndex < numNodes);
+		assert(destNodeIndex <= roxieClusterManager->getClusterSize());
+		// TODO what's this?
         receiversTable[destNodeIndex].pushData(queue, buffer);
         send_flow->data_added(destNodeIndex);
     }
@@ -979,7 +987,9 @@ public:
 
     virtual IMessagePacker *createMessagePacker(ruid_t ruid, unsigned sequence, const void *messageHeader, unsigned headerSize, unsigned destNodeIndex, int queue)
     {
-        if (destNodeIndex >= numNodes)
+		// TODO get rid of here
+		// if (destNodeIndex >= numNodes)
+		if (destNodeIndex > roxieClusterManager->getClusterSize())
             throw MakeStringException(ROXIE_UDP_ERROR, "createMessagePacker: invalid destination node index %i", destNodeIndex);
         return ::createMessagePacker(ruid, sequence, messageHeader, headerSize, *this, destNodeIndex, myNodeIndex, getNextMessageSequence(), queue);
     }
@@ -1201,6 +1211,7 @@ public:
         package_header.length = datalength + metalength + sizeof(UdpPacketHeader);
         package_header.metalength = metalength;
         memcpy(dataBuff->data, &package_header, sizeof(package_header));
+		DBGLOG("[Roxie][udptrs] destNodeIndex=%u, queue_number=%u", destNodeIndex, queue_number);
         parent.writeOwn(destNodeIndex, dataBuff, package_header.length, queue_number);
 
         if (udpTraceLevel >= 50)

@@ -1605,6 +1605,8 @@ bool CSafeSocket::readBlock(MemoryBuffer &ret, unsigned timeout, unsigned maxBlo
         try
         {
             sock->read(&len, sizeof (len), sizeof (len), bytesRead, timeout);
+			DBGLOG("\#len=%s", (char *)&len);
+			DBGLOG("\#bytesRead=%d", bytesRead);
         }
         catch (IJSOCK_Exception *E)
         {
@@ -1688,7 +1690,7 @@ bool CSafeSocket::readBlock(StringBuffer &ret, unsigned timeout, HttpHelper *pHt
         try
         {
             sock->read(&len, sizeof (len), sizeof (len), bytesRead, timeout);
-            DBGLOG("[Roxie][Socket] read len=%s", (char *)&len);
+            DBGLOG("[Roxie][Socket] request type: %s", (char *)&len);
         }
         catch (IJSOCK_Exception *E)
         {
@@ -1791,6 +1793,7 @@ bool CSafeSocket::readBlock(StringBuffer &ret, unsigned timeout, HttpHelper *pHt
             header[bytesRead] = 0;
             DBGLOG("[Roxie][admin] data=%.*s", bytesRead, header);
             char *payload = strstr(header, "\r\n\r\n");
+			DBGLOG("\t@@ payload=%s", payload);
             if (payload)
             {
                 *payload = 0;

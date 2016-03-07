@@ -36,7 +36,7 @@ class RoxieNode: public IRoxieNode
     
 private:
     unsigned nodeIndex = -1;
-    const char* address;
+    char* address;
     unsigned short port;
 	IpAddress ipAddress;
 
@@ -49,19 +49,34 @@ public:
     RoxieNode(unsigned nodeIndex, const char* address, unsigned short port)
     {
         this->nodeIndex = nodeIndex;
-		this->ipAddress.ipset(address);
-        this->address = address;
+		this->address = new char[256]; //big enough?
+        memcpy(this->address, address, strlen(address) + 1);
+		this->ipAddress.ipset(this->address);
         this->port = port;
     }
+
+	virtual void setNodeIndex(unsigned nodeIndex)
+	{
+		this->nodeIndex = nodeIndex;
+	}
 
     virtual unsigned getNodeIndex()
     {
         return this->nodeIndex;
     }
 
+	//virtual StringBuffer &getAddress(StringBuffer &sb)
+	//{
+	//	return this->ipAddress.getIpText(sb);
+	//	//return sb;
+	//}
+
     virtual const char *getAddress()
     {
-        return this->address;
+		return this->address;
+		//StringBuffer ipText;
+		//this->ipAddress.getIpText(ipText);
+		//return ipText.str();
     }
 
 	virtual const IpAddress &getIpAddress()
@@ -190,7 +205,10 @@ public:
 		IRoxieNode &selfNode = this->addNode(this->_getHost());
 		this->masterIndex = selfNode.getNodeIndex();
 		this->selfIndex = selfNode.getNodeIndex();
+		this->nodeList[0] = &(selfNode);
         this->masterServiceEnabled = true;
+		DBGLOG("\tmasterIndex=%u, selfIndex=%u", this->masterIndex, this->selfIndex);
+		DBGLOG("\treal selfNode=%u", this->getSelf()->getNodeIndex());
         //this->_load_testing_data();
     }
     
@@ -208,14 +226,17 @@ public:
 	virtual bool isMasterNode()
     {
 		//return this->selfIndex == this->masterIndex;
+		DBGLOG("[Cluster] isMasterNode");
+		DBGLOG("\tmaster=%s", this->getMaster()->getAddress());
 		IpAddress ip(this->getMaster()->getAddress());
+		DBGLOG("\tmaster=%s, isMaster=%s", this->getMaster()->getAddress(), ip.isLocal()?"True":"False");
 		return ip.isLocal();
     }
 
 	virtual void setMaster(const char *host)
     {
         DBGLOG("[Roxie][Cluster] set master -> %s", host);
-        this->masterNode = new RoxieNode(0, host, 9876);
+        this->masterNode = new RoxieNode(1, host, 9876); // needs to change if the master node has changed
     }
     
 	virtual IRoxieNode *getMaster()
@@ -230,7 +251,7 @@ public:
 
 	virtual IRoxieNode *getSelf()
     {
-		return this->nodeList[this->selfIndex];
+		return this->nodeList[0];
     }
 
 	virtual IRoxieNode *getNode(unsigned nodeIndex)
@@ -292,28 +313,39 @@ public:
 
 		IPropertyTree *jsonTree = createPTree();
 		IPropertyTree *paramTree = createPTree();
+		DBGLOG("\t@ host=%s", this->getSelf()->getAddress());
 		paramTree->setProp("./host", this->getSelf()->getAddress());
 		jsonTree->setProp("./action", "join");
 		jsonTree->setPropTree("./params", paramTree);
 
 		DBGLOG("finished creating json tree");
 		StringBuffer content;
-		toJSON(jsonTree, content);
+		toJSON(jsonTree, content, 0, JSON_SortTags);
 		DBGLOG("content=%s", content.str());
 
 		StringBuffer cmdRequest;
-		cmdRequest.append("CMD /proxy HTTP/1.1\nContent-Length: ");
+		cmdRequest.append("CMD /proxy HTTP/1.1\n");
 		cmdRequest.appendf("Content-Length: %u", content.length());
 		cmdRequest.append("\n");
+		cmdRequest.append("\r\n\r\n");
 		cmdRequest.append(content.str());
 		DBGLOG("req=%s", cmdRequest.str());
 
+		DBGLOG("\t@ master=%s", this->getMaster()->getAddress());
 		SocketEndpoint ep(this->getMaster()->getAddress(), 9876);
 		Owned<ISocket> socket;
 		socket.setown(ISocket::connect(ep));
 		CSafeSocket sc(socket);
 		DBGLOG("socket connection is ready");
 		sc.write(cmdRequest.str(), cmdRequest.length());
+		char buff[8192];
+		unsigned len;
+		unsigned bytesRead;
+		socket->read(buff, sizeof(len), sizeof(len), bytesRead, maxBlockSize);
+		DBGLOG("response=%s", buff);
+		unsigned nodeIndex = atoi(buff);
+		DBGLOG("\tregisted node id -> %u", nodeIndex);
+		this->getSelf()->setNodeIndex(nodeIndex);
         
 		// do http request to the master server
         // while (true)
@@ -374,7 +406,7 @@ public:
         this->clusterManager = clusterManager;
     }
 
-	virtual void handleRequest(IPropertyTree *request, SafeSocket *client)
+	virtual void handleRequest(IPropertyTree *request, ISocket *client)
     {
         DBGLOG("[Roxie][Proxy] recieved a request");
         const char *action = request->queryProp("./action");
@@ -420,7 +452,7 @@ public:
     }
 
 private:
-    void echo(SafeSocket *client, IPropertyTree *request)
+    void echo(ISocket *client, IPropertyTree *request)
     {
         //client->write("ECHOECHO", 8); // only echo will not get flushed
 		StringBuffer sb;
@@ -428,30 +460,35 @@ private:
 		sb = sb.trim();
 		DBGLOG("[Roxie][Proxy][echo] length=%u", sb.length());
 		DBGLOG("[Roxie][Proxy][echo] content=%s", sb.str());
-		client->write(sb.str(), sb.length());
-		client->flush();
+		client->write(sb.str(), strlen(sb.str()) + 1);
     }
 
-    void join(SafeSocket *client, const char *host)
+    void join(ISocket *client, const char *host)
     {
-        this->clusterManager->addNode(host);
-        client->write("JOINED", 6);
+		IRoxieNode &node = this->clusterManager->addNode(host);
+		DBGLOG("\t@host=%s -> index=%u", host, node.getNodeIndex());
+		StringBuffer sb;
+		sb.appendf("%u___", node.getNodeIndex()); // appending str because str is not flushed.
+		DBGLOG("\tresponse=%s, len=%u", sb.str(), sb.length());
+        client->write(sb.str(), sb.length());
+		//client->write("UNIMPLEMENTED", 13);
     }
 
-    void leave(SafeSocket *client)
+    void leave(ISocket *client)
     {
         client->write("LEAVE", 5);
     }
 
-    void list(SafeSocket *client)
+	// TODO two remote calls will fail here
+    void list(ISocket *client)
     {
         const MapStringTo<IRoxieNodePtr> nodes = this->clusterManager->getNodes();
         HashIterator nodeIterator(nodes);
         ForEach(nodeIterator)
         {
             IRoxieNode *node = *(nodes.mapToValue(&nodeIterator.query()));
-            const char *nodeAddress = node->getAddress();
-            client->write("LEAVE", strlen(nodeAddress)); // is this correct
+            const char*nodeAddress = node->getAddress();
+            client->write(nodeAddress, strlen(nodeAddress)); // is this correct
         }
     }
 };
