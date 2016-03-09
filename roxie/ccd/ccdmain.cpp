@@ -921,8 +921,6 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
             }
         }
 
-		roxieClusterManager = createRoxieClusterManager();
-		roxieMasterProxy = createRoxieMasterProxy();
         Owned<IPropertyTreeIterator> roxieServers = topology->getElements("./RoxieServerProcess");
         ForEach(*roxieServers)
         {
@@ -939,7 +937,7 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
             //}
             if (roxieServer.getPropBool("@master", false))
             {
-                roxieClusterManager->setMaster(iptext);
+				roxieClusterManager = createRoxieClusterManager(iptext);
             }
             //if (traceLevel > 3)
             //    DBGLOG("Roxie server %u is at %s", nodeIndex, iptext);
@@ -949,20 +947,12 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
         //if (myNodeIndex == -1)
         //    throw MakeStringException(MSGAUD_operator, ROXIE_INVALID_TOPOLOGY, "Invalid topology file - current node is not in server list");
 
-        if (!roxieClusterManager->hasMaster())
-            throw MakeStringException(MSGAUD_operator, ROXIE_INVALID_TOPOLOGY, "Needs to specify the master Roxie node");
-        
-		//roxieClusterManager->start();
-		if (roxieClusterManager->isMasterNode())
-		{
-			DBGLOG("Enabling master service");
-			roxieClusterManager->enableMasterService();
-		}
-		else
-		{
-			DBGLOG("Joing the Roxie cluster");
-			roxieClusterManager->joinRoxieCluster();
-		}
+		if (!roxieClusterManager)
+			throw MakeStringException(MSGAUD_operator, ROXIE_INVALID_TOPOLOGY, "Needs to specify the master Roxie node");
+
+		roxieMasterProxy = createRoxieMasterProxy(roxieClusterManager);
+		roxieClusterManager->init();
+		roxieClusterManager->start();
 	    
         myNodeIndex = roxieClusterManager->getSelf()->getNodeIndex(); // has to be assigned by the master
 		DBGLOG("[Roxie][main] myNodexIndex=%u", myNodeIndex);
@@ -1033,12 +1023,12 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
 			DBGLOG("[Roxie] channels by random assign");
 			//numChannels = roxieClusterManager->getClusterSize();
 			numChannels = roxieClusterManager->getNumOfChannels();
-			const IChannelList channelList = roxieClusterManager->getChannelList();
+			const IRoxieChannelList channelList = roxieClusterManager->getChannelList();
 			DBGLOG("[1]");
 			ForEachItemIn(idx, channelList)
 			{
 				DBGLOG("[2] idx=%u", idx);
-			    IChannelPtr channelPtr = channelList.element(idx);
+			    IRoxieChannelPtr channelPtr = channelList.element(idx);
 				DBGLOG("[3] channelPtr=%p", channelPtr);
 				addChannel(myNodeIndex, channelPtr->getChannelIndex(), channelPtr->getChannelLevel());
 			}
@@ -1129,7 +1119,7 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
                 if (!roxiePort)
                 {
                     roxiePort = port;
-					ownEP.set(roxiePort, roxieClusterManager->getNode(myNodeIndex)->getAddress());
+					ownEP.set(roxiePort, roxieClusterManager->getSelf()->getAddress());
                     //ownEP.set(roxiePort, getNodeAddress(myNodeIndex));
                 }
                 bool suspended = roxieFarm.getPropBool("@suspended", false);
