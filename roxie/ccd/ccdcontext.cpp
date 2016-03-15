@@ -3694,7 +3694,8 @@ public:
     virtual bool fileExists(const char * filename) { throwUnexpected(); }
     virtual void deleteFile(const char * logicalName) { throwUnexpected(); }
 
-    virtual unsigned getNodes() { return numChannels; }
+    //virtual unsigned getNodes() { return numChannels; }
+	virtual unsigned getNodes() { return roxieClusterManager->getClusterSize(); }
     virtual unsigned getNodeNum() { return 0; }
     virtual char *getFilePart(const char *logicalPart, bool create=false) { UNIMPLEMENTED; }
     virtual unsigned __int64 getFileOffset(const char *logicalPart) { throwUnexpected(); }
