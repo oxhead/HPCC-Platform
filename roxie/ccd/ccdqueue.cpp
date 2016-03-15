@@ -161,7 +161,8 @@ void addEndpoint(unsigned channel, const IpAddress &slaveIp, unsigned port)
     slaveIp.getIpText(ipText);
     DBGLOG("[Roxie] addEndpoint: channel=%u, IpAddress=%s, port=%u", channel, ipText.str(), port);
     if (!slaveEndpoints)
-        slaveEndpoints = new SocketEndpointArray[numChannels + 1];
+		slaveEndpoints = new SocketEndpointArray[128];
+        //slaveEndpoints = new SocketEndpointArray[numChannels + 1];
     IpAddress multicastIp;
     if (roxieMulticastEnabled)
         getChannelIp(multicastIp, channel);
@@ -1454,7 +1455,8 @@ public:
         {
             unsigned channel = it->query().getPropInt("@channel", 0);
             unsigned subChannel = it->query().getPropInt("@subChannel", 0);
-            assertex(channel <= numChannels);
+            //assertex(channel <= numChannels);
+			assertex(channel <= 128);
             assertex(subChannels[channel] == 0);
             assertex(subChannel != 0);
             subChannels[channel] = subChannel;
