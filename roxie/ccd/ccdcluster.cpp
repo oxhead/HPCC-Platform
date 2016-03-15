@@ -93,15 +93,19 @@ public:
 		DBGLOG("[Roxie][LocalMasterServiceProxy] joinRoxieClsuter");
 		IRoxieNode *registeredNode = this->master->joinCluster(this->selfNode->getAddress());
 	}
-	virtual IRoxieNodeList retrieveNodeList()
+	virtual IRoxieNodeList &retrieveNodeList(IRoxieNodeList &ret)
 	{
 		DBGLOG("[Roxie][LocalMasterServiceProxy] retrieveNodeList");
-		return this->master->getNodeList();
+		const IRoxieNodeList &nodeList = this->master->getNodeList();
+		ret = nodeList;
+		return ret;
 	}
-	virtual IRoxieChannelList retrieveChannelList()
+	virtual IRoxieChannelList &retrieveChannelList(IRoxieChannelList &ret)
 	{
 		DBGLOG("[Roxie][LocalMasterServiceProxy] retrieveChannelList");
-		return this->master->getChannelList();
+		const IRoxieChannelList &channelList = this->master->getChannelList();
+		ret = channelList;
+		return ret;
 	}
 
 };
@@ -118,7 +122,6 @@ public:
 	virtual void joinRoxieCluster()
 	{
 		DBGLOG("[Roxie][RemoteMasterServiceProxy] joinRoxieClsuter");
-
 		IPropertyTree *jsonTree = createPTree();
 		IPropertyTree *paramTree = createPTree();
 		DBGLOG("\t@ host=%s", this->cluster->getSelf()->getAddress());
@@ -131,20 +134,18 @@ public:
 		toJSON(jsonTree, content, 0, JSON_SortTags);
 		DBGLOG("content=%s", content.str());
 
-		StringBuffer cmdRequest;
-		cmdRequest.append("CMD /proxy HTTP/1.1\n");
-		cmdRequest.appendf("Content-Length: %u", content.length());
-		cmdRequest.append("\r\n\r\n");
-		cmdRequest.append(content.str());
-		DBGLOG("req=%s", cmdRequest.str());
+		MyStringBuffer cmdRequest;
+		convertToHTTPRequest(jsonTree, cmdRequest);
 
 		DBGLOG("\t@ master=%s", this->cluster->getMaster()->getAddress());
 		SocketEndpoint ep(this->cluster->getMaster()->getAddress(), 9876);
+
 		Owned<ISocket> socket;
-		socket.setown(ISocket::connect(ep));
-		CSafeSocket sc(socket);
+		socket.setown(ISocket::connect_timeout(ep, 60000));		
 		DBGLOG("socket connection is ready");
-		sc.write(cmdRequest.str(), cmdRequest.length());
+		MyString requestStr = cmdRequest.str();
+		socket->write(requestStr.data(), requestStr.size());
+
 		char buff[8192];
 		unsigned len;
 		unsigned bytesRead;
@@ -154,17 +155,54 @@ public:
 		DBGLOG("\tregisted node id -> %u", nodeIndex);
 		IRoxieNode *registeredNode = this->cluster->createNode(nodeIndex, this->cluster->getSelf()->getAddress());
 		this->cluster->addNode(registeredNode);
+
+		socket->shutdown();
+		socket->close();
+		socket.clear();
 	}
 
-	virtual IRoxieNodeList retrieveNodeList()
+	virtual IRoxieNodeList &retrieveNodeList(IRoxieNodeList &ret)
 	{
 		DBGLOG("[Roxie][RemoteMasterServiceProxy] retrieveNodeList");
 		throw MakeStringException(ROXIE_INTERNAL_ERROR, "Retrieve node list operation is not yet implemented");
 	}
-	virtual IRoxieChannelList retrieveChannelList()
+	virtual IRoxieChannelList &retrieveChannelList(IRoxieChannelList &ret)
 	{
 		DBGLOG("[Roxie][RemoteMasterServiceProxy] retrieveCList");
-		throw MakeStringException(ROXIE_INTERNAL_ERROR, "Retrieve channel list operation is not yet implemented");
+
+		IPropertyTree *jsonTree = createPTree();
+		IPropertyTree *paramTree = createPTree();
+		DBGLOG("\t@ host=%s", this->cluster->getSelf()->getAddress());
+		paramTree->setProp("./host", this->cluster->getSelf()->getAddress());
+		jsonTree->setProp("./action", "retrieveChannelList");
+		jsonTree->setPropTree("./params", paramTree);
+
+		MyStringBuffer cmdRequest;
+		convertToHTTPRequest(jsonTree, cmdRequest);
+
+		DBGLOG("\t@ master=%s", this->cluster->getMaster()->getAddress());
+		SocketEndpoint ep(this->cluster->getMaster()->getAddress(), 9876);
+
+		Owned<ISocket> socket;
+		socket.setown(ISocket::connect_timeout(ep, 60000));
+		DBGLOG("socket connection is ready");
+		MyString requestStr = cmdRequest.str();
+		socket->write(requestStr.data(), requestStr.size());
+
+		char buff[8192];
+		unsigned len;
+		unsigned bytesRead;
+		socket->read(buff, 4, 8192, bytesRead, maxBlockSize);
+		DBGLOG("\tbytesRead=%u", bytesRead);
+		DBGLOG("\tresponse=%s", buff);
+
+		IPropertyTree *responseJson = createPTreeFromJSONString(buff, ipt_caseInsensitive, (PTreeReaderOptions)(defaultXmlReadFlags | ptr_ignoreNameSpaces));
+		parseFromJSON(responseJson, ret);
+
+		socket->shutdown();
+		socket->close();
+		socket.clear();
+		return ret;
 	}
 };
 
@@ -191,8 +229,8 @@ public:
     RoxieClusterManager(const char *masterHost) : Thread("RoxieClusterManager"), running(false)
     {
 		DBGLOG("[Roxie][ClusterManager] initializing...");
-		this->nodeList.ensure(1024); // initialize the list?
-		this->channelList.ensure(128);
+		//this->nodeList.ensure(1024); // initialize the list?
+		//this->channelList.ensure(128);
 
         // the self node
 		IpAddress selfIpAddress = queryHostIP(); // call jsocket API
@@ -222,19 +260,19 @@ public:
 	virtual void addNode(IRoxieNode *node)
 	{
 		DBGLOG("[Roxie][Cluster] addNode");
-		DBGLOG("\tbefore) nodeList=%u", this->nodeList.length());
-		this->nodeList.add(node, node->getNodeIndex());
-		DBGLOG("\tafter) nodeList=%u", this->nodeList.length());
+		DBGLOG("\tbefore) nodeList=%d", this->nodeList.size());
+		this->nodeList.push_back(node);
+		DBGLOG("\tafter) nodeList=%d", this->nodeList.size());
 	}
 
 	virtual void removeNode(IRoxieNode *node)
 	{
 		DBGLOG("[Roxie][Cluster] removeNode");
 		// TODO is this safe?
-		this->nodeList.element(node->getNodeIndex()) = NULL;
+		// this->nodeList.element(node->getNodeIndex()) = NULL;
 	}
 
-	virtual const IRoxieNodeList getNodeList()
+	virtual const IRoxieNodeList &getNodeList()
 	{
 		DBGLOG("[Roxie][Cluster] getNodeList");
 		return this->nodeList;
@@ -244,7 +282,7 @@ public:
 	{
 		DBGLOG("[Roxie][Cluster] getNode");
 		// need to check the index range
-		DBGLOG("\tnodeIndex=%u, total=%u", nodeId, this->nodeList.length());
+		DBGLOG("\tnodeIndex=%u, total=%u", nodeId, this->nodeList.size());
 		return this->nodeList[nodeId];
 	}
 
@@ -292,7 +330,7 @@ public:
 	{
 		DBGLOG("[Roxie][Cluster] getClusterSize");
 		// TODO needs to count only active nodes in the future
-		return this->nodeList.length();
+		return this->nodeList.size();
 	}
 
 	virtual IRoxieChannel *createChannel(unsigned channelIndex)
@@ -312,7 +350,15 @@ public:
 	{
 		DBGLOG("[Roxie][Cluster] addChannel");
 		DBGLOG("\tchannelIndex=%u", channel->getChannelIndex());
-		this->channelList.add(channel, channel->getChannelIndex());
+		this->channelList.push_back(channel);
+
+		for (int i = 0; i < this->channelList.size(); i++)
+		{
+			IRoxieChannel *channel = this->channelList[i];
+			DBGLOG("\t# channelPtr=%p", channel);
+			DBGLOG("\t(1) channel=%u", channel->getChannelIndex());
+		}
+
 		return channel;
 	}
 
@@ -331,9 +377,16 @@ public:
 		}
 	}
 
-	virtual const IRoxieChannelList getChannelList()
+	virtual const IRoxieChannelList &getChannelList()
 	{
 		DBGLOG("[Roxie][Cluster] getChannelList");
+		DBGLOG("\t* channel size=%u", this->channelList.size());
+		for (int i = 0; i < this->channelList.size(); i++)
+		{
+			IRoxieChannel *channel = this->channelList[i];
+			DBGLOG("\t# channelPtr=%p", channel);
+			DBGLOG("\t(2) channel=%u", channel->getChannelIndex());
+		}
 		// only works for the master node now
 		// need to get this information for the master node
 
@@ -363,14 +416,24 @@ public:
 	virtual unsigned getNumOfChannels()
 	{
 		DBGLOG("[Roxie][Cluster] getNumOfChannels");
-		return this->channelList.length() - 1; // the channel 0 is for local used only?
+		return this->channelList.size() - 1; // the channel 0 is for local used only?
+	}
+
+	virtual void updateChannels(IRoxieChannelList &updateChannelList)
+	{
+		DBGLOG("[Roxie][Cluster] updateChannels");
+		// TODO need a lock here
+		this->nodeList.clear();
+		for (IRoxieChannelPtr channelPtr : updateChannelList)
+		{
+			this->addChannel(channelPtr);
+		}
 	}
 
 	// implement IRoxieMaster
 	virtual void enableMasterService()
 	{
 		DBGLOG("[Roxie][Master] enableMasterService");
-
 		this->masterNode = this->selfNode;
 
 		// the following code works only for the first initialization
@@ -381,6 +444,7 @@ public:
 			this->addChannel(channel);
 			// safe for memory leak?
 			IRoxieNodeList *roxieNodeList = new IRoxieNodeList{};
+			roxieNodeList->push_back(this->getSelf());
 			this->channelToNodeListMap.setValue(channel->getChannelIndex(), roxieNodeList);
 		}
 	}
@@ -446,6 +510,14 @@ public:
 		throw MakeStringException(ROXIE_INTERNAL_ERROR, "Master election is not yet implemented");
 	}
 
+	virtual void syncChannels()
+	{
+		DBGLOG("[Roxie][ClusterManager] syncChannels");
+		IRoxieChannelList updatedChannelList;;
+		this->masterService->retrieveChannelList(updatedChannelList);
+	    this->updateChannels(updatedChannelList);
+	}
+
 	virtual void init()
 	{
 		DBGLOG("[Roxie][ClusterManager] init");
@@ -455,6 +527,10 @@ public:
 			this->enableMasterService();
 		}
 		this->masterService->joinRoxieCluster();
+		if (!this->isMasterNode())
+		{
+			this->syncChannels();
+		}
 	}
 
 	virtual void start()
@@ -533,6 +609,12 @@ public:
         {
             this->list(client);
         }
+		else if (strnicmp(action, "retrieveChannelList", 19) == 0)
+		{
+			const char *keyHost = "host";
+			const char *host = params->getValue(keyHost)->str();
+			this->retrieveChannelList(client, host);
+		}
         else
         {
             client->write("UNIMPLEMENTED", 13);
@@ -577,16 +659,105 @@ private:
     void list(ISocket *client)
     {
 		DBGLOG("[Roxie][MasterProxy] list");
-		const IRoxieNodeList nodeList = this->roxieMaster->getNodeList();
-        ForEachItemIn(idx, nodeList)
-        {
-            IRoxieNode *node = nodeList.item(idx);
-            const char*nodeAddress = node->getAddress();
+		const IRoxieNodeList &nodeList = this->roxieMaster->getNodeList();
+		for (IRoxieNode *node : nodeList)
+		{
+			const char*nodeAddress = node->getAddress();
 			// TODO is this correct?
-            client->write(nodeAddress, strlen(nodeAddress)+1);
-        }
+			client->write(nodeAddress, strlen(nodeAddress) + 1);
+		}
     }
+
+	void retrieveChannelList(ISocket *client, const char *host)
+	{
+		DBGLOG("[Roxie][MasterProxy] retrieveChannelList");
+		// TODO return channel list per host?
+		const IRoxieChannelList &channelList = this->roxieMaster->getChannelList();
+		for (int i = 0; i < channelList.size(); i++)
+		{
+			IRoxieChannel *channel = channelList[i];
+			DBGLOG("\t@channel=%d", channel->getChannelIndex());
+		}
+		IPropertyTree *jsonTree = createJSONTree(channelList);
+		StringBuffer response;
+		convertToJSON(jsonTree, response);
+		const char *responseStr = response.str();
+		DBGLOG("\tresponse=%s", responseStr);
+		DBGLOG("\tresponse length=%d", strlen(responseStr) + 1);
+		unsigned bytesWrite = client->write(responseStr, strlen(responseStr) + 1);
+		DBGLOG("\tbytesWrite=%u", bytesWrite);
+	}
 };
+
+MyStringBuffer &convertToHTTPRequest(IPropertyTree *jsonTree, MyStringBuffer &ret)
+{
+	DBGLOG("[Roxie][util] convertToHTTPRequest");
+	StringBuffer content;
+	toJSON(jsonTree, content, 0, JSON_SortTags);
+	DBGLOG("content=%s", content.str());
+
+	ret << "CMD /proxy HTTP/1.1\n";
+	ret << "Content-Length: ";
+	ret << content.length();
+	ret << "\r\n\r\n";
+	ret << content.str();
+	DBGLOG("req=%s", ret.str().data());
+
+	return ret;
+}
+
+
+IPropertyTree  *createJSONTree(const IRoxieChannelList &channelList)
+{
+	DBGLOG("[Roxie][util] createJSONTree -> IRoxieChannelList");
+	IPropertyTree *jsonTree = createPTree();
+	jsonTree->setProp("./class", "IRoxieChannelList");
+
+	for (int idx = 0; idx < channelList.size(); idx++)
+	{
+		IRoxieChannel *channel = channelList[idx];
+		DBGLOG("\t@channel=%u", channel->getChannelIndex());
+
+		//jsonTree->addPropInt("./channel", channel->getChannelIndex());
+		IPropertyTree *objTree = createPTree("channel");
+		objTree->setPropInt("@channel", channel->getChannelIndex());
+		jsonTree->addPropTree("object", objTree);
+	}
+
+	return jsonTree;
+}
+
+IPropertyTree *createJSONTree(StringBuffer &jsonStr)
+{
+	DBGLOG("[Roxie][util] createJSONTree -> StringBuffer");
+	IPropertyTree *responseJson = createPTreeFromJSONString(jsonStr.str(), ipt_caseInsensitive, (PTreeReaderOptions)(defaultXmlReadFlags | ptr_ignoreNameSpaces));
+	return responseJson;
+}
+
+StringBuffer &convertToJSON(IPropertyTree *jsonTree, StringBuffer &content)
+{
+	DBGLOG("[Roxie][util] convertToJSON");
+	toJSON(jsonTree, content, 0, JSON_SortTags);
+	return content;
+}
+
+IRoxieChannelList &parseFromJSON(IPropertyTree *jsonTree, IRoxieChannelList &channelList)
+{
+	DBGLOG("[Roxie][util] parseFromJSON");
+	Owned<IPropertyTreeIterator> paramsIter = jsonTree->getElements("./object");
+	DBGLOG("\tcount=%u", jsonTree->getCount("./object"));
+	ForEach(*paramsIter)
+	{
+		IPropertyTree &object = paramsIter->query();
+		unsigned channelIndex = object.getPropInt("@channel");
+		DBGLOG("\t@ object=%u", channelIndex);
+		IRoxieChannel *channel = roxieClusterManager->createChannel(channelIndex);
+		channelList.push_back(channel);
+		DBGLOG("\t@ channel=%u", channel->getChannelIndex());
+	}
+	return channelList;
+}
+
 
 IRoxieClusterManager *roxieClusterManager;
 

@@ -1735,6 +1735,7 @@ readAnother:
 				cmdJson.setown(createPTreeFromJSONString(rawText.str(), ipt_caseInsensitive, (PTreeReaderOptions)(defaultXmlReadFlags | ptr_ignoreNameSpaces)));
 				DBGLOG("[Roxie][Worker] complete Json Parse");
 				roxieMasterProxy->handleRequest(cmdJson.get(), client->querySocket());
+				// TODO recycle the memory?
 			}
             else
             {

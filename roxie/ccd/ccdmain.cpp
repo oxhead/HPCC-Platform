@@ -1041,14 +1041,12 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
 			DBGLOG("[Roxie] channels by random assign");
 			//numChannels = roxieClusterManager->getClusterSize();
 			numChannels = roxieClusterManager->getNumOfChannels();
+			DBGLOG("\tnumChannels=%u", numChannels);
 			const IRoxieChannelList channelList = roxieClusterManager->getChannelList();
-			DBGLOG("[1]");
-			ForEachItemIn(idx, channelList)
+
+			for (IRoxieChannel *channel : channelList)
 			{
-				DBGLOG("[2] idx=%u", idx);
-			    IRoxieChannelPtr channelPtr = channelList.element(idx);
-				DBGLOG("[3] channelPtr=%p", channelPtr);
-				addChannel(myNodeIndex, channelPtr->getChannelIndex(), channelPtr->getChannelLevel());
+				addChannel(myNodeIndex, channel->getChannelIndex(), channel->getChannelLevel());
 			}
         }
         else    // 'Full redundancy' or 'simple' mode

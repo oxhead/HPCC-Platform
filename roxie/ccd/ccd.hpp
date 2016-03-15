@@ -459,7 +459,8 @@ extern void dumpBuffer(const char *title, const void *buf, unsigned recSize);
 
 inline unsigned getBondedChannel(unsigned partNo)
 {
-    return ((partNo - 1) % numChannels) + 1;
+    //return ((partNo - 1) % numChannels) + 1;
+	return ((partNo - 1) % roxieClusterManager->getClusterSize()) + 1;
 }
 
 extern void FatalError(const char *format, ...)  __attribute__((format(printf, 1, 2)));

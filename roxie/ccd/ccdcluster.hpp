@@ -8,6 +8,9 @@
 #ifndef _CCDCLUSTER_INCL
 #define _CCDCLUSTER_INCL
 
+#include <sstream>
+#include <string>
+#include <vector>
 
 #include "jsocket.hpp"
 //#include "roxiehelper.hpp"
@@ -36,11 +39,16 @@ public:
 	virtual unsigned getChannelLevel() = 0;
 };
 
+#define MAX_ROXIE_ARRAY_SIZE 1204
+typedef std::string MyString;
+typedef std::ostringstream MyStringBuffer;
 typedef IRoxieNode *IRoxieNodePtr; //required to be here before IRoxieClusterManager
 typedef IRoxieChannel *IRoxieChannelPtr;
 typedef MapStringTo<IRoxieNodePtr> IRoxieNodeMap; //map host to the node object
-typedef ArrayOf<IRoxieNodePtr> IRoxieNodeList;
-typedef ArrayOf<IRoxieChannelPtr> IRoxieChannelList;
+//typedef ArrayOf<IRoxieNodePtr> IRoxieNodeList;
+//typedef ArrayOf<IRoxieChannelPtr> IRoxieChannelList;
+typedef std::vector<IRoxieNodePtr> IRoxieNodeList;
+typedef std::vector<IRoxieChannelPtr> IRoxieChannelList;
 typedef IRoxieNodeList *IRoxieNodeListPtr;
 typedef IRoxieChannelList *IRoxieChannelListPtr;
 typedef MapBetween<unsigned, unsigned, IRoxieChannelPtr, IRoxieChannelPtr> IRoxieChannelMap; // channel index to channel gourp
@@ -51,8 +59,8 @@ class IRoxieMasterService
 {
 public:
 	virtual void joinRoxieCluster() = 0; // blocking call
-	virtual IRoxieNodeList retrieveNodeList() = 0;
-	virtual IRoxieChannelList retrieveChannelList() = 0;
+	virtual IRoxieNodeList &retrieveNodeList(IRoxieNodeList &ret) = 0;
+	virtual IRoxieChannelList &retrieveChannelList(IRoxieChannelList &ret) = 0;
 };
 
 // the Roxie mater, mainly for internal usage
@@ -64,8 +72,8 @@ public:
 	virtual unsigned generateUniqueNodeId() = 0;
 	virtual IRoxieNode *joinCluster(const char *host) = 0; // need to make sure the id is unique across all nodes
 	virtual IRoxieNode *leaveCluster(const char *host) = 0;
-	virtual const IRoxieNodeList getNodeList() = 0;
-	virtual const IRoxieChannelList getChannelList() = 0;
+	virtual const IRoxieNodeList &getNodeList() = 0;
+	virtual const IRoxieChannelList &getChannelList() = 0;
 
 };
 
@@ -82,7 +90,7 @@ public:
 	// TOOD do we need to remove a node or maintain an active node list?
 	virtual void removeNode(IRoxieNode *node) = 0;
     // get the list of all nodes
-	virtual const IRoxieNodeList getNodeList() = 0;
+	virtual const IRoxieNodeList &getNodeList() = 0;
 	// get node by node index
 	virtual IRoxieNode *getNode(unsigned nodeIndex) = 0;
 	// lookup node by host
@@ -101,8 +109,9 @@ public:
 	virtual IRoxieChannel *createChannel(unsigned channelIndex) = 0;
 	virtual IRoxieChannel *addChannel(IRoxieChannel *channel) = 0;
 	virtual IRoxieChannel *lookupChannel(unsigned channelIndex) = 0;
-	virtual const IRoxieChannelList getChannelList() = 0;
+	virtual const IRoxieChannelList &getChannelList() = 0;
 	virtual unsigned getNumOfChannels() = 0;
+	virtual void updateChannels(IRoxieChannelList &channelList) = 0;
 };
 
 class IRoxieClusterManager : public virtual IRoxieCluster, public virtual IRoxieMaster
@@ -115,6 +124,9 @@ public:
 	virtual void configueMasterService() = 0;
 	virtual void electMaster() = 0;
 
+	// channel related
+	virtual void syncChannels() = 0;
+
     // thread control
 	virtual void init() = 0;
 	virtual void start() = 0;
@@ -126,6 +138,12 @@ class IRoxieMasterProxy
 public:
 	virtual void handleRequest(IPropertyTree *request, ISocket *client) = 0;
 };
+
+MyStringBuffer &convertToHTTPRequest(IPropertyTree *jsonTree, MyStringBuffer &ret);
+IPropertyTree *createJSONTree(const IRoxieChannelList &channelList);
+IPropertyTree *createJSONTree(StringBuffer &jsonStr);
+StringBuffer &convertToJSON(IPropertyTree *jsonTree, StringBuffer &ret);
+IRoxieChannelList &parseFromJSON(IPropertyTree *jsonTree, IRoxieChannelList &channelList);
 
 IRoxieClusterManager *createRoxieClusterManager(const char *masterHost);
 extern IRoxieClusterManager *roxieClusterManager;
