@@ -1846,6 +1846,7 @@ bool CSafeSocket::readBlock(StringBuffer &ret, unsigned timeout, HttpHelper *pHt
             sock->read(buf + (len - left), left, left, bytesRead, timeout);
             DBGLOG("[Roxie][Socket] read data into buf -> bytesRead=%d", bytesRead);
         }
+		DBGLOG("[Roxie][Socket] return=%s", len != 0? "true" : "false");
 
         return len != 0;
     }
