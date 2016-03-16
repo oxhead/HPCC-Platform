@@ -22,6 +22,7 @@
 #include "roxie.hpp"
 #include "roxiehelper.hpp"
 #include "ccdprotocol.hpp"
+#include "ccdcluster.hpp"
 
 //================================================================================================================================
 
@@ -1486,8 +1487,10 @@ readAnother:
         StringAttr queryName;
         StringAttr queryPrefix;
         bool stripWhitespace = msgctx->getStripWhitespace();
-        if (mlFmt==MarkupFmt_XML || mlFmt==MarkupFmt_JSON)
+        if (!isAdmin && (mlFmt==MarkupFmt_XML || mlFmt==MarkupFmt_JSON))
         {
+			DBGLOG("[Roxie][Protocol] extracting query name");
+			DBGLOG("[Roxie][Protocol] rawText=%s", rawText.str());
             QueryNameExtractor extractor(mlFmt, stripWhitespace);
             extractor.extractName(rawText.str(), logctx, peerStr, ep.port);
             queryName.set(extractor.name);
@@ -1496,7 +1499,16 @@ readAnother:
         }
         try
         {
-            if (streq(queryPrefix.str(), "control"))
+		    if (isAdmin)
+		    {
+			    DBGLOG("[Roxie][Worker] isAdmin");
+			    Owned<IPropertyTree> cmdJson;
+			    cmdJson.setown(createPTreeFromJSONString(rawText.str(), ipt_caseInsensitive, (PTreeReaderOptions)(global->defaultXmlReadFlags | ptr_ignoreNameSpaces)));
+			    DBGLOG("[Roxie][Worker] complete Json Parse");
+			    roxieMasterProxy->handleRequest(cmdJson.get(), client->querySocket());
+			    // TODO recycle the memory?
+		    }
+            else if (streq(queryPrefix.str(), "control"))
             {
                 if (httpHelper.isHttp())
                     client->setHttpMode(queryName, false, httpHelper);
@@ -1526,15 +1538,6 @@ readAnother:
             {
                 client->write("OK", 2);
             }
-			else if (isAdmin)
-			{
-				DBGLOG("[Roxie][Worker] isAdmin");
-				Owned<IPropertyTree> cmdJson;
-				cmdJson.setown(createPTreeFromJSONString(rawText.str(), ipt_caseInsensitive, (PTreeReaderOptions)(defaultXmlReadFlags | ptr_ignoreNameSpaces)));
-				DBGLOG("[Roxie][Worker] complete Json Parse");
-				roxieMasterProxy->handleRequest(cmdJson.get(), client->querySocket());
-				// TODO recycle the memory?
-			}
             else
             {
                 unsigned readFlags = (unsigned) global->defaultXmlReadFlags | ptr_ignoreNameSpaces;
