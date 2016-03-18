@@ -57,6 +57,7 @@ extern size32_t channelWrite(unsigned channel, void const* buf, size32_t size);
 void addEndpoint(unsigned channel, const IpAddress &slaveIp, unsigned port);
 void openMulticastSocket();
 void joinMulticastChannel(unsigned channel);
+void leaveMulticastChannel(unsigned channel);
 
 extern unsigned channels[MAX_CLUSTER_SIZE];     // list of all channel numbers for this node
 extern unsigned channelCount;                   // number of channels this node is doing

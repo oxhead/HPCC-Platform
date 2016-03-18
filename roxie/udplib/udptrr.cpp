@@ -890,6 +890,7 @@ public:
             SpinBlock b(collatorsLock);
             try
             {
+				DBGLOG("[Roxie][udptrr] ruid=%u", pktHdr->ruid);
                 msgColl.set(collators[pktHdr->ruid]);
                 if (!msgColl)
                 {
@@ -948,6 +949,7 @@ IReceiveManager *createReceiveManager(int server_flow_port, int data_port, int c
                                       unsigned myNodeIndex)
 {
     assertex (maxSlotsPerSender <= udpQueueSize);
+	DBGLOG("[Roxie][udptrr] createReceiveManager -> myNodeIndex=%u", myNodeIndex);
     return new CReceiveManager(server_flow_port, data_port, client_flow_port, sniffer_port, sniffer_multicast_ip, udpQueueSize, maxSlotsPerSender, myNodeIndex);
 }
 

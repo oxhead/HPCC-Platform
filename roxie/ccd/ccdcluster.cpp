@@ -358,6 +358,7 @@ public:
 			DBGLOG("\t# channelPtr=%p", channel);
 			DBGLOG("\t(1) channel=%u", channel->getChannelIndex());
 		}
+		joinMulticastChannel(channel->getChannelIndex());
 
 		return channel;
 	}
@@ -428,6 +429,14 @@ public:
 		{
 			this->addChannel(channelPtr);
 		}
+	}
+
+	virtual void setJoinMulticastGroupFunc(void(*func)() = 0)
+	{
+	}
+
+	virtual void setLeaveMulticastGroupFunc(void(*func)() = 0)
+	{
 	}
 
 	// implement IRoxieMaster
