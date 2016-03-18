@@ -616,8 +616,9 @@ public:
                 result->flush(true);
         }
     }
-    virtual void finalize(unsigned seqNo)
+    virtual void finalize(unsigned seqNo, const char *delim)
     {
+        bool needDelimiter = false;
         ForEachItemIn(seq, resultMap)
         {
             FlushingStringBuffer *result = resultMap.item(seq);
@@ -630,8 +631,17 @@ public:
                     void *payload = result->getPayload(length);
                     if (!length)
                         break;
+                    if (needDelimiter)
+                    {
+                        StringAttr s(delim); //write() will take ownership of buffer
+                        size32_t len = s.length();
+                        client->write((void *)s.detach(), len, true);
+                        needDelimiter=false;
+                    }
                     client->write(payload, length, true);
                 }
+                if (delim)
+                    needDelimiter=true;
             }
         }
     }
@@ -979,7 +989,7 @@ public:
 
         outputContent();
         if (results)
-            results->finalize(seqNo);
+            results->finalize(seqNo, ",");
 
         responseTail.append("}");
         len = responseTail.length();
@@ -1080,7 +1090,7 @@ public:
 
         outputContent();
         if (results)
-            results->finalize(seqNo);
+            results->finalize(seqNo, NULL);
 
         responseTail.append("</").append(queryName);
         if (isHTTP)
@@ -1487,27 +1497,28 @@ readAnother:
         StringAttr queryName;
         StringAttr queryPrefix;
         bool stripWhitespace = msgctx->getStripWhitespace();
-        if (!isAdmin && (mlFmt==MarkupFmt_XML || mlFmt==MarkupFmt_JSON))
-        {
-			DBGLOG("[Roxie][Protocol] extracting query name");
-			DBGLOG("[Roxie][Protocol] rawText=%s", rawText.str());
-            QueryNameExtractor extractor(mlFmt, stripWhitespace);
-            extractor.extractName(rawText.str(), logctx, peerStr, ep.port);
-            queryName.set(extractor.name);
-            queryPrefix.set(extractor.prefix);
-            stripWhitespace = extractor.stripWhitespace;
-        }
         try
         {
-		    if (isAdmin)
-		    {
-			    DBGLOG("[Roxie][Worker] isAdmin");
-			    Owned<IPropertyTree> cmdJson;
-			    cmdJson.setown(createPTreeFromJSONString(rawText.str(), ipt_caseInsensitive, (PTreeReaderOptions)(global->defaultXmlReadFlags | ptr_ignoreNameSpaces)));
-			    DBGLOG("[Roxie][Worker] complete Json Parse");
-			    roxieMasterProxy->handleRequest(cmdJson.get(), client->querySocket());
-			    // TODO recycle the memory?
-		    }
+			if (!isAdmin && (mlFmt == MarkupFmt_XML || mlFmt == MarkupFmt_JSON))
+            {
+				DBGLOG("[Roxie][Protocol] extracting query name");
+				DBGLOG("[Roxie][Protocol] rawText=%s", rawText.str());
+                QueryNameExtractor extractor(mlFmt, stripWhitespace);
+                extractor.extractName(rawText.str(), logctx, peerStr, ep.port);
+                queryName.set(extractor.name);
+                queryPrefix.set(extractor.prefix);
+                stripWhitespace = extractor.stripWhitespace;
+            }
+
+			if (isAdmin)
+			{
+				DBGLOG("[Roxie][Worker] isAdmin");
+				Owned<IPropertyTree> cmdJson;
+				cmdJson.setown(createPTreeFromJSONString(rawText.str(), ipt_caseInsensitive, (PTreeReaderOptions)(global->defaultXmlReadFlags | ptr_ignoreNameSpaces)));
+				DBGLOG("[Roxie][Worker] complete Json Parse");
+				roxieMasterProxy->handleRequest(cmdJson.get(), client->querySocket());
+				// TODO recycle the memory?
+			}
             else if (streq(queryPrefix.str(), "control"))
             {
                 if (httpHelper.isHttp())
