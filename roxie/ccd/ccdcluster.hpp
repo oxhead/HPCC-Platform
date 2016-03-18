@@ -112,6 +112,8 @@ public:
 	virtual const IRoxieChannelList &getChannelList() = 0;
 	virtual unsigned getNumOfChannels() = 0;
 	virtual void updateChannels(IRoxieChannelList &channelList) = 0;
+	virtual void setJoinMulticastGroupFunc(void(*func)() = 0) = 0;
+	virtual void setLeaveMulticastGroupFunc(void(*func)() = 0) = 0;
 };
 
 class IRoxieClusterManager : public virtual IRoxieCluster, public virtual IRoxieMaster

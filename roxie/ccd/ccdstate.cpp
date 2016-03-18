@@ -1154,6 +1154,7 @@ public:
         CriticalBlock b(ccdChannelsCrit);
         managers = new CRoxieSlaveQuerySetManager *[numChannels];
         memset(managers, 0, sizeof(CRoxieSlaveQuerySetManager *) * numChannels);
+		// TODO: change calling ccdChannels
         Owned<IPropertyTreeIterator> it = ccdChannels->getElements("RoxieSlaveProcess");
         ForEach(*it)
         {
@@ -2636,6 +2637,7 @@ private:
                 {
                     unsigned channel = control->getPropInt("@channel", 0);
                     bool suspend = control->getPropBool("@suspend", true);
+					// TODO: change calling ccdChannels
                     CriticalBlock b(ccdChannelsCrit);
                     if (channel)
                     {
@@ -2651,6 +2653,7 @@ private:
                     }
                     else
                     {
+					    // TODO: change calling ccdChannels
                         Owned<IPropertyTreeIterator> slaves = ccdChannels->getElements("RoxieSlaveProcess");
                         ForEach(*slaves)
                         {
@@ -2660,6 +2663,7 @@ private:
                             slaveNode.setPropBool("@suspended", suspend);
                         }
                     }
+					// TODO: change saving ccdChannels?
                     toXML(ccdChannels, reply);
                 }
                 else
@@ -2671,6 +2675,7 @@ private:
                 {
                     unsigned port = control->getPropInt("@port", 0);
                     bool suspend = control->getPropBool("@suspend", true);
+					// TODO change calling ccdChannels
                     CriticalBlock b(ccdChannelsCrit);
                     if (port)
                     {
@@ -2686,6 +2691,7 @@ private:
                     }
                     else
                     {
+						// TODO: change calling ccdchannels
                         Owned<IPropertyTreeIterator> servers = ccdChannels->getElements("RoxieServerProcess");
                         ForEach(*servers)
                         {
@@ -2695,6 +2701,7 @@ private:
                             serverNode.setPropBool("@suspended", suspend);
                         }
                     }
+					// TODO: change saving ccdChannels
                     toXML(ccdChannels, reply);
                 }
                 else

@@ -144,7 +144,8 @@ void openMulticastSocket()
         }
         if (traceLevel)
             DBGLOG("Roxie: multicast socket created port=%d sockbuffsize=%d actual %d", ccdMulticastPort, udpMulticastBufferSize, actualSize);
-        Owned<IPropertyTreeIterator> it = ccdChannels->getElements("RoxieSlaveProcess");
+        // TODO: get results from ccdChannels (static)
+		Owned<IPropertyTreeIterator> it = ccdChannels->getElements("RoxieSlaveProcess");
         ForEach(*it)
         {
             unsigned channel = it->query().getPropInt("@channel", 0);
@@ -723,6 +724,7 @@ struct PingRecord
 void doPing(IRoxieQueryPacket *packet, const IRoxieContextLogger &logctx)
 {
     const RoxiePacketHeader &header = packet->queryHeader();
+	DBGLOG("[Roxie][queue] doPing -> serverIndex=%u", header.serverIdx);
 	const IpAddress &serverIP = roxieClusterManager->getNode(header.serverIdx)->getIpAddress();
 	StringBuffer sb;
 	serverIP.getIpText(sb);
@@ -1450,6 +1452,7 @@ public:
         slaWorkers.setown(createThreadPool("RoxieSLAWorkers", this, NULL, numWorkers));
 #endif
         CriticalBlock b(ccdChannelsCrit);
+		// TODO: read channel settings
         Owned<IPropertyTreeIterator> it = ccdChannels->getElements("RoxieSlaveProcess");
         ForEach(*it)
         {
@@ -1796,6 +1799,7 @@ class RoxieSocketQueueManager : public RoxieReceiverBase
 public:
     RoxieSocketQueueManager(unsigned snifferChannel, unsigned _numWorkers) : RoxieReceiverBase(_numWorkers), readThread(*this)
     {
+		DBGLOG("[Roxie][queue] initializing socket queue manager");
         int udpQueueSize = topology->getPropInt("@udpQueueSize", UDP_QUEUE_SIZE);
         int udpSendQueueSize = topology->getPropInt("@udpSendQueueSize", UDP_SEND_QUEUE_SIZE);
         int udpMaxSlotsPerClient = topology->getPropInt("@udpMaxSlotsPerClient", 0x7fffffff);
@@ -2137,6 +2141,7 @@ public:
                     // Turn broadcast packet (channel 0), as early as possible, into non-0 channel packets.
                     // So retries and other communication with Roxie server (which uses non-0 channel numbers) will not cause double work or confusion.
                     // Unfortunately this is bad news for dropping packets
+					// TODO: fix static channelCount
                     for (unsigned i = 1; i < channelCount; i++)
                         queue.enqueue(packet->clonePacket(channels[i]));
                     header.channel = channels[0];
@@ -2586,7 +2591,8 @@ public:
             {
                 // Turn broadcast packet (channel 0), as early as possible, into non-0 channel packets.
                 // So retries and other communication with Roxie server (which uses non-0 channel numbers) will not cause double work or confusion.
-                for (unsigned i = 0; i < channelCount; i++)
+			    // TODO: fix static channelCount
+				for (unsigned i = 0; i < channelCount; i++)
                 {
                     targetQueue->enqueue(packet->clonePacket(channels[i]));
                 }
@@ -2792,6 +2798,7 @@ class PingTimer : public Thread
 
     void sendPing(unsigned priorityMask)
     {
+		DBGLOG("[Roxie][PingTimer] sendPing=%u", priorityMask);
         unsigned packetSize = sizeof(RoxiePacketHeader) + sizeof(char) + strlen("PING") + 1 + sizeof(PingRecord);
         void *packetData = malloc(packetSize);
         RoxiePacketHeader *header = (RoxiePacketHeader *) packetData;
