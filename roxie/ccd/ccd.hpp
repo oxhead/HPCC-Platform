@@ -59,11 +59,11 @@ void openMulticastSocket();
 void joinMulticastChannel(unsigned channel);
 void leaveMulticastChannel(unsigned channel);
 
-extern unsigned channels[MAX_CLUSTER_SIZE];     // list of all channel numbers for this node
-extern unsigned channelCount;                   // number of channels this node is doing
-extern unsigned subChannels[MAX_CLUSTER_SIZE];  // maps channel numbers to subChannels for this node
-extern bool suspendedChannels[MAX_CLUSTER_SIZE];// indicates suspended channels for this node
-extern unsigned numSlaves[MAX_CLUSTER_SIZE];    // number of slaves listening on this channel
+//extern unsigned channels[MAX_CLUSTER_SIZE];     // list of all channel numbers for this node
+//extern unsigned channelCount;                   // number of channels this node is doing
+//extern unsigned subChannels[MAX_CLUSTER_SIZE];  // maps channel numbers to subChannels for this node
+//extern bool suspendedChannels[MAX_CLUSTER_SIZE];// indicates suspended channels for this node
+//extern unsigned numSlaves[MAX_CLUSTER_SIZE];    // number of slaves listening on this channel
 extern unsigned replicationLevel[MAX_CLUSTER_SIZE];  // Which copy of the data this channel uses on this slave
 
 extern unsigned myNodeIndex;
@@ -193,7 +193,9 @@ public:
 
     static unsigned getSubChannelMask(unsigned channel)
     {
-        unsigned subChannel = subChannels[channel] - 1;
+		// TODO: needs to understand here
+        //unsigned subChannel = subChannels[channel] - 1;
+		unsigned subChannel = roxieClusterManager->getChannel(channel)->getChannelIndex() - 1;
         return SUBCHANNEL_MASK << (SUBCHANNEL_BITS * subChannel);
     }
 
@@ -247,7 +249,8 @@ public:
 
     bool allChannelsFailed() 
     {
-        unsigned mask = (1 << (numSlaves[channel] * SUBCHANNEL_BITS)) - 1;
+        //unsigned mask = (1 << (numSlaves[channel] * SUBCHANNEL_BITS)) - 1;
+		unsigned mask = (1 << (roxieClusterManager->getChannel(channel)->getNumOfParticipantNodes() * SUBCHANNEL_BITS)) - 1;
         return (retries & mask) == mask;
     }
 
@@ -255,7 +258,9 @@ public:
     {
         bool worthRetrying = false;
         unsigned mask = SUBCHANNEL_MASK;
-        for (unsigned subChannel = 0; subChannel < numSlaves[channel]; subChannel++)
+		// TODO: needs to check here again
+        //for (unsigned subChannel = 0; subChannel < numSlaves[channel]; subChannel++)
+		for (unsigned subChannel = 0; subChannel < roxieClusterManager->getChannel(channel)->getNumOfParticipantNodes(); subChannel++)
         {
             unsigned subRetries = (retries & mask) >> (subChannel * SUBCHANNEL_BITS);
             if (subRetries != SUBCHANNEL_MASK)
@@ -280,13 +285,15 @@ public:
 
     inline void setException()
     {
-        unsigned subChannel = subChannels[channel] - 1;
+        //unsigned subChannel = subChannels[channel] - 1;
+		unsigned subChannel = roxieClusterManager->getChannel(channel)->getChannelIndex() - 1;
         retries |= SUBCHANNEL_MASK << (SUBCHANNEL_BITS * subChannel);
     }
 
     unsigned thisChannelRetries()
     {
-        unsigned shift = SUBCHANNEL_BITS * (subChannels[channel] - 1);
+        //unsigned shift = SUBCHANNEL_BITS * (subChannels[channel] - 1);
+		unsigned shift = SUBCHANNEL_BITS * (roxieClusterManager->getChannel(channel)->getChannelIndex() - 1);
         unsigned mask = SUBCHANNEL_MASK << shift;
         return (retries & mask) >> shift;
     }

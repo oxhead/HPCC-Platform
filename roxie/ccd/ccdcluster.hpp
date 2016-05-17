@@ -8,6 +8,8 @@
 #ifndef _CCDCLUSTER_INCL
 #define _CCDCLUSTER_INCL
 
+#include <map>
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -20,16 +22,67 @@
 class IRoxieNode
 {
 public:
-	bool equals(IRoxieNode &other)
-	{
-		return strcmp(this->getAddress(), other.getAddress()) == 0;
-	}
-
 	virtual void setNodeIndex(unsigned nodeIndex) = 0;
     virtual unsigned getNodeIndex() = 0;
-    //virtual StringBuffer &getAddress(StringBuffer &sb) = 0;
-	virtual const char *getAddress() = 0;
-	virtual const IpAddress &getIpAddress() = 0;
+	virtual std::string getAddress() = 0;
+	virtual IpAddress &getIpAddress(IpAddress &ipAddress) = 0;
+};
+
+class RoxieNode : public IRoxieNode
+{
+private:
+	unsigned nodeIndex = -1;
+	std::string address;
+	unsigned short port;
+
+public:
+
+	RoxieNode(unsigned nodeIndex, const char* address)
+	{
+		RoxieNode(nodeIndex, address, 9876);
+	}
+
+	RoxieNode(unsigned nodeIndex, const char* addressStr, unsigned short port)
+		: nodeIndex(nodeIndex)
+		, address(addressStr)
+		, port(port)
+	{
+	}
+
+	virtual void setNodeIndex(unsigned nodeIndex)
+	{
+		this->nodeIndex = nodeIndex;
+	}
+
+	virtual unsigned getNodeIndex()
+	{
+		return this->nodeIndex;
+	}
+
+	virtual std::string getAddress()
+	{
+		return this->address;
+	}
+
+	virtual IpAddress &getIpAddress(IpAddress &ipAddress)
+	{
+		ipAddress.ipset(this->address.c_str());
+		return ipAddress;
+	}
+
+	bool operator==(const RoxieNode &other) const
+	{
+		return this->address == other.address;
+	}
+	bool operator!=(const RoxieNode &other) const
+	{
+		return this->address != other.address;
+	}
+	bool operator<(const RoxieNode &other) const
+	{
+		return this->address < other.address;
+	}
+
 };
 
 class IRoxieChannel
@@ -37,30 +90,88 @@ class IRoxieChannel
 public:
 	virtual unsigned getChannelIndex() = 0;
 	virtual unsigned getChannelLevel() = 0;
+	virtual void suspend() = 0;
+	virtual bool isSuspended() = 0;
+	virtual bool isLocal() = 0;
+	virtual bool isPrimChannel() = 0; // the rignt name?
+	virtual void addNode(RoxieNode node) = 0;
+	virtual void removeNode(RoxieNode node) = 0;
+	virtual bool containsNode(RoxieNode node) = 0;
+	virtual unsigned getNumOfParticipantNodes() = 0;
+	virtual const RoxieNodeSet &getParticipantNodes() = 0;
 };
 
-#define MAX_ROXIE_ARRAY_SIZE 1204
-typedef std::string MyString;
-typedef std::ostringstream MyStringBuffer;
-typedef IRoxieNode *IRoxieNodePtr; //required to be here before IRoxieClusterManager
-typedef IRoxieChannel *IRoxieChannelPtr;
-typedef MapStringTo<IRoxieNodePtr> IRoxieNodeMap; //map host to the node object
-//typedef ArrayOf<IRoxieNodePtr> IRoxieNodeList;
-//typedef ArrayOf<IRoxieChannelPtr> IRoxieChannelList;
-typedef std::vector<IRoxieNodePtr> IRoxieNodeList;
-typedef std::vector<IRoxieChannelPtr> IRoxieChannelList;
-typedef IRoxieNodeList *IRoxieNodeListPtr;
-typedef IRoxieChannelList *IRoxieChannelListPtr;
-typedef MapBetween<unsigned, unsigned, IRoxieChannelPtr, IRoxieChannelPtr> IRoxieChannelMap; // channel index to channel gourp
-typedef MapBetween<unsigned, unsigned, IRoxieNodeListPtr, IRoxieNodeListPtr> ChannelToNodeListMap; //map channel id to node list
+class RoxieChannel : public IRoxieChannel
+{
+private:
+	unsigned index = -1; // maybe a problem for negative?
+	unsigned level = -1;
+	bool suspended;
+	RoxieNodeSet nodes;
+public:
+	RoxieChannel(unsigned _index, unsigned _level = 0)
+		: index(_index)
+		, level(_level)
+		, suspended(false)
+	{
+	}
+	unsigned getChannelIndex()
+	{
+		return this->index;
+	}
+	unsigned getChannelLevel()
+	{
+		return this->level;
+	}
+	virtual void suspend()
+	{
+		this->suspended = true;
+	}
+	virtual bool isSuspended()
+	{
+		return this->suspended;
+	}
+	bool isLocal()
+	{
+		return this->index == 0;
+	}
+	bool isPrimChannel()
+	{
+		return this->getNumOfParticipantNodes() == 1;
+	}
+	virtual void addNode(RoxieNode node)
+	{
+		this->nodes.insert(node);
+	}
+	virtual void removeNode(RoxieNode node)
+	{
+		this->nodes.erase(node);
+	}
+	virtual unsigned getNumOfParticipantNodes()
+	{
+		return this->nodes.size();
+	}
+	virtual const RoxieNodeSet &getParticipantNodes()
+	{
+		return this->nodes;
+	}
+};
+
+typedef std::vector<RoxieNode> RoxieNodeList;
+typedef std::set<RoxieNode> RoxieNodeSet;
+typedef std::map<unsigned, RoxieNode> RoxieNodeMap;
+
+typedef std::vector<RoxieChannel> RoxieChannelList;
+typedef std::set<RoxieChannel> RoxieChannelSet;
+typedef std::map<unsigned, RoxieChannel> RoxieChannelMap;
 
 // the services provided for slave nodes
 class IRoxieMasterService
 {
 public:
 	virtual void joinRoxieCluster() = 0; // blocking call
-	virtual IRoxieNodeList &retrieveNodeList(IRoxieNodeList &ret) = 0;
-	virtual IRoxieChannelList &retrieveChannelList(IRoxieChannelList &ret) = 0;
+	virtual RoxieNodeList retrieveNodeList() = 0;
+	virtual RoxieChannelList retrieveChannelList() = 0;
 };
 
 // the Roxie mater, mainly for internal usage
@@ -70,10 +181,10 @@ public:
 	virtual void enableMasterService() = 0;
 	virtual void disableMasterService() = 0;
 	virtual unsigned generateUniqueNodeId() = 0;
-	virtual IRoxieNode *joinCluster(const char *host) = 0; // need to make sure the id is unique across all nodes
-	virtual IRoxieNode *leaveCluster(const char *host) = 0;
-	virtual const IRoxieNodeList &getNodeList() = 0;
-	virtual const IRoxieChannelList &getChannelList() = 0;
+	virtual void joinCluster(const char *host) = 0; // need to make sure the id is unique across all nodes
+	virtual void leaveCluster(const char *host) = 0;
+	virtual RoxieNodeSet getNodes() = 0;
+	virtual RoxieChannelSet getChannels() = 0;
 
 };
 
@@ -82,23 +193,23 @@ class IRoxieCluster
 {
 public:
 	// 1) node related
-	// central place to initialize a node object to avoid memory leak
-    virtual IRoxieNode *createNode(unsigned nodeIndex, const char *nodeAddress) = 0;
 	// add the node to the node table
-	virtual void addNode(IRoxieNode *node) = 0;
+	virtual const RoxieNode &addNode(const char *address) = 0;
     // remove the node from the node table
 	// TOOD do we need to remove a node or maintain an active node list?
-	virtual void removeNode(IRoxieNode *node) = 0;
+	virtual void removeNode(RoxieNode node) = 0;
+	virtual void removeNode(unsigned index) = 0;
     // get the list of all nodes
-	virtual const IRoxieNodeList &getNodeList() = 0;
+	virtual RoxieNodeSet &getNodes() = 0;
 	// get node by node index
-	virtual IRoxieNode *getNode(unsigned nodeIndex) = 0;
+	virtual const RoxieNode &getNode(unsigned nodeIndex) = 0;
 	// lookup node by host
-	virtual IRoxieNode *lookupNode(const char *host) = 0;
+	virtual const RoxieNode &lookupNode(const char *host) = 0;
+	virtual bool containNode(const char *host) = 0;
 	// the pointer to the master node
-	virtual IRoxieNode *getMaster() = 0;
+	virtual RoxieNode &getMaster() = 0;
 	// the pointer to the self node
-	virtual IRoxieNode *getSelf() = 0;
+	virtual RoxieNode &getSelf() = 0;
     // check itself a master node
 	virtual bool isMasterNode() = 0;
 	// the cluster size
@@ -106,21 +217,20 @@ public:
 	virtual unsigned getClusterSize() = 0;
 
 	// channel related
-	virtual IRoxieChannel *createChannel(unsigned channelIndex) = 0;
-	virtual IRoxieChannel *addChannel(IRoxieChannel *channel) = 0;
-	virtual IRoxieChannel *lookupChannel(unsigned channelIndex) = 0;
-	virtual const IRoxieChannelList &getChannelList() = 0;
+	virtual RoxieChannel &addChannel(unsigned channelIndex) = 0;
+	virtual void updateChannel(unsigned channelIndex, RoxieNodeSet nodes) = 0;
+	virtual RoxieChannel &getChannel(unsigned channelIndex) = 0;
+	virtual RoxieChannel &getLocalChannel() = 0;
+	virtual RoxieChannel &getSnifferChannel() = 0;
+	virtual RoxieChannelSet getChannels() = 0;
 	virtual unsigned getNumOfChannels() = 0;
-	virtual void updateChannels(IRoxieChannelList &channelList) = 0;
-	virtual void setJoinMulticastGroupFunc(void(*func)() = 0) = 0;
-	virtual void setLeaveMulticastGroupFunc(void(*func)() = 0) = 0;
 };
 
 class IRoxieClusterManager : public virtual IRoxieCluster, public virtual IRoxieMaster
 {
 public:
-	using IRoxieCluster::getNodeList;
-	using IRoxieCluster::getChannelList;
+	using IRoxieCluster::getNodes;
+	using IRoxieCluster::getChannels;
 
 	// master service related
 	virtual void configueMasterService() = 0;
@@ -147,7 +257,7 @@ IPropertyTree *createJSONTree(StringBuffer &jsonStr);
 StringBuffer &convertToJSON(IPropertyTree *jsonTree, StringBuffer &ret);
 IRoxieChannelList &parseFromJSON(IPropertyTree *jsonTree, IRoxieChannelList &channelList);
 
-IRoxieClusterManager *createRoxieClusterManager(const char *masterHost);
+IRoxieClusterManager *createRoxieClusterManager(const char *masterHost, bool localSlave=false);
 extern IRoxieClusterManager *roxieClusterManager;
 
 IRoxieMasterProxy *createRoxieMasterProxy(IRoxieClusterManager *roxieClusterManager);

@@ -114,7 +114,7 @@ class CascadeManager : public CInterface
     void connectChild(unsigned idx)
     {
         //if (idx < getNumNodes())
-		if (idx <= roxieClusterManager->getClusterSize())
+		if (idx < roxieClusterManager->getClusterSize())
         {
            // SocketEndpoint ep(roxiePort, getNodeAddress(idx));
 			SocketEndpoint ep(roxiePort, roxieClusterManager->getNode(idx)->getIpAddress());

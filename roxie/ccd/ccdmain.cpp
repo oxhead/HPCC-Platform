@@ -311,15 +311,15 @@ void addSlaveChannel(unsigned channel, unsigned level)
         throw MakeStringException(MSGAUD_operator, ROXIE_INVALID_TOPOLOGY, "Invalid topology file - channel %d repeated", channel);
     IPropertyTree *ci = createPTree("RoxieSlaveProcess");
     ci->setPropInt("@channel", channel);
-    ci->setPropInt("@subChannel", numSlaves[channel]);
+    //ci->setPropInt("@subChannel", numSlaves[channel]);
     ccdChannels->addPropTree("RoxieSlaveProcess", ci);
-    DBGLOG("[Roxie] slaveChannel: channel=%u, subChannel=%u", channel, numSlaves[channel]);
+    DBGLOG("[Roxie] slaveChannel: channel=%u", channel);
 }
 
 void addChannel(unsigned nodeNumber, unsigned channel, unsigned level)
 {
     DBGLOG("[Roxie] addChannel: nodeNumber=%u, channel=%u, level=%u", nodeNumber, channel, level);
-    numSlaves[channel]++;
+    //numSlaves[channel]++;
     if (nodeNumber == myNodeIndex && channel > 0)
     {
         //assertex(channel <= numChannels);
@@ -969,6 +969,11 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
 		if (!roxieClusterManager)
 			throw MakeStringException(MSGAUD_operator, ROXIE_INVALID_TOPOLOGY, "Needs to specify the master Roxie node");
 
+		DBGLOG("@@@@@@@@@@@@@@@@@@@@@@@@@@@@ %s", localSlave ? "localSlave" : "false");
+		// need to open the socket before adding new channel
+		if (!localSlave)
+			openMulticastSocket();
+
 		roxieMasterProxy = createRoxieMasterProxy(roxieClusterManager);
 		roxieClusterManager->init();
 		roxieClusterManager->start();
@@ -1041,14 +1046,14 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
         {
 			DBGLOG("[Roxie] channels by random assign");
 			//numChannels = roxieClusterManager->getClusterSize();
-			numChannels = roxieClusterManager->getNumOfChannels();
-			DBGLOG("\tnumChannels=%u", numChannels);
-			const IRoxieChannelList channelList = roxieClusterManager->getChannelList();
+		    numChannels = roxieClusterManager->getNumOfChannels();
+			// DBGLOG("\tnumChannels=%u", numChannels);
+			// const IRoxieChannelList channelList = roxieClusterManager->getChannelList();
 
-			for (IRoxieChannel *channel : channelList)
-			{
-				addChannel(myNodeIndex, channel->getChannelIndex(), channel->getChannelLevel());
-			}
+			// for (IRoxieChannel *channel : channelList)
+			//{
+			//	addChannel(myNodeIndex, channel->getChannelIndex(), channel->getChannelLevel());
+			//}
         }
         else    // 'Full redundancy' or 'simple' mode
         {
@@ -1072,8 +1077,8 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
             throw MakeStringException(MSGAUD_operator, ROXIE_INVALID_TOPOLOGY, "Invalid topology file - localSlave requires single channel (%d channels specified)", numChannels);
         saveChannel();
         // Now we know all the channels, we can open and subscribe the multicast channels
-        if (!localSlave)
-            openMulticastSocket();
+        //if (!localSlave)
+        //    openMulticastSocket();
 
         setDaliServixSocketCaching(true);  // enable daliservix caching
         loadPlugins();

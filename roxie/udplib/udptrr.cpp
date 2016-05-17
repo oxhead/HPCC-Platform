@@ -282,6 +282,7 @@ class CReceiveManager : public CInterface, implements IReceiveManager
         ReceiveFlowManager(CReceiveManager &_parent, unsigned _maxSenders, unsigned _maxSlotsPerSender)
          : Thread("UdpLib::ReceiveFlowManager"), parent(_parent)
         {
+			DBGLOG("[Roxie][ReceiveFlowManager] nodeIndex=%u", parent.myNodeIndex);
             firstRequest = (unsigned) -1;
             lastRequest = (unsigned) -1;
             currentTransfer = (unsigned) -1;
@@ -293,6 +294,7 @@ class CReceiveManager : public CInterface, implements IReceiveManager
             if (missingTableSize > MAX_RESEND_TABLE_SIZE)
                 missingTableSize = MAX_RESEND_TABLE_SIZE;
 			// TODO change the loop here
+			// TODO not maxSenders
             for (unsigned i = 0; i < maxSenders; i++)
             {
                 sendersTable[i].init(i, parent.myNodeIndex, parent.send_flow_port, missingTableSize);
@@ -819,9 +821,10 @@ public:
         input_queue_size = queue_size;
         input_queue = new queue_t(queue_size);
         data = new receive_data(*this);
+		DBGLOG("[Roxie][ReceiverManager] nodeIndex=%u", myNodeIndex);
 		// TODO how to support elastic?
         //manager = new ReceiveFlowManager(*this, getNumNodes(), m_slot_pr_client);
-		manager = new ReceiveFlowManager(*this, roxieClusterManager->getClusterSize(), m_slot_pr_client);
+		manager = new ReceiveFlowManager(*this, 1, m_slot_pr_client); // temporary solution
         receive_flow = new receive_receive_flow(*this, server_flow_port);
 		// TODO how to support elastic?
         if (udpSnifferEnabled)

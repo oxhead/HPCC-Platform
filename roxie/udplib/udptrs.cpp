@@ -934,9 +934,7 @@ public:
         numQueues = _numQueues;
 		// TODO this needs to support elastic operation
         //receiversTable = new UdpReceiverEntry[numNodes];
-		unsigned nn = roxieClusterManager->getClusterSize();
-		DBGLOG("[Roxie][udptrs] numNodes=%d", nn);
-		receiversTable = new UdpReceiverEntry[nn];
+		receiversTable = new UdpReceiverEntry[16]; // temporary solution
         if (maxRetryData > MAX_RESEND_TABLE_SIZE)
             maxRetryData = MAX_RESEND_TABLE_SIZE;
         for (unsigned i = 0; i < numNodes; i++)

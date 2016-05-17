@@ -37,10 +37,10 @@
 
 CriticalSection ibytiCrit; // CAUTION - not safe to use spinlocks as real-time thread accesses
 CriticalSection queueCrit;
-unsigned channels[MAX_CLUSTER_SIZE];
-unsigned channelCount;
-unsigned subChannels[MAX_CLUSTER_SIZE];
-unsigned numSlaves[MAX_CLUSTER_SIZE];
+//unsigned channels[MAX_CLUSTER_SIZE];
+//unsigned channelCount;
+//unsigned subChannels[MAX_CLUSTER_SIZE];
+//unsigned numSlaves[MAX_CLUSTER_SIZE];
 unsigned replicationLevel[MAX_CLUSTER_SIZE];
 unsigned IBYTIDelays[MAX_CLUSTER_SIZE]; // MORE: this will cover only 2 slaves per channel, change to cover all. 
 
@@ -85,75 +85,51 @@ bool isSlaveEndpoint(unsigned channel, const IpAddress &slaveIp)
 
 void joinMulticastChannel(unsigned channel)
 {
-    if (roxieMulticastEnabled && !localSlave)
-    {
-		DBGLOG("[Roxie][Queue] joinMulticastChannel");
-        IpAddress multicastIp;
-        getChannelIp(multicastIp, channel);
-        StringBuffer ipText;
-        multicastIp.getIpText(ipText);
-        DBGLOG("[Roxie][Multicast] channel %u -> ip=%s", channel, ipText.str());
-        SocketEndpoint ep(ccdMulticastPort, multicastIp);
-        StringBuffer epStr;
-        ep.getUrlStr(epStr);
-        if (!multicastSocket->join_multicast_group(ep))
-            throw MakeStringException(ROXIE_MULTICAST_ERROR, "Failed to join multicast channel %d (%s)", channel, epStr.str());
-        if (traceLevel)
-            DBGLOG("Joined multicast channel %d (%s)", channel, epStr.str());
-    }
-}
-
-void leaveMulticastChannel(unsigned channel)
-{
 	if (roxieMulticastEnabled && !localSlave)
 	{
-		DBGLOG("[Roxie][Queue] leaveMulticastChannel");
 		IpAddress multicastIp;
 		getChannelIp(multicastIp, channel);
-		StringBuffer ipText;
-		multicastIp.getIpText(ipText);
-		DBGLOG("[Roxie][Multicast] channel %u -> ip=%s", channel, ipText.str());
 		SocketEndpoint ep(ccdMulticastPort, multicastIp);
 		StringBuffer epStr;
 		ep.getUrlStr(epStr);
-		if (!multicastSocket->leave_multicast_group(ep))
+		if (!multicastSocket->join_multicast_group(ep))
 			throw MakeStringException(ROXIE_MULTICAST_ERROR, "Failed to join multicast channel %d (%s)", channel, epStr.str());
 		if (traceLevel)
-			DBGLOG("Left multicast channel %d (%s)", channel, epStr.str());
+			DBGLOG("Joined multicast channel %d (%s)", channel, epStr.str());
 	}
 }
 
 void openMulticastSocket()
 {
-    if (!multicastSocket)
-    {
-        multicastSocket.setown(ISocket::udp_create(ccdMulticastPort));
-        if (multicastTTL)
-        {
-            multicastSocket->set_ttl(multicastTTL);
-            DBGLOG("Roxie: multicastTTL: %u", multicastTTL);
-        }
-        else
-            DBGLOG("Roxie: multicastTTL not set");
-        multicastSocket->set_receive_buffer_size(udpMulticastBufferSize);
-        size32_t actualSize = multicastSocket->get_receive_buffer_size();
-        if (actualSize < udpMulticastBufferSize)
-        {
-            DBGLOG("Roxie: multicast socket buffer size could not be set (requested=%d actual %d", udpMulticastBufferSize, actualSize);
-            throwUnexpected();
-        }
-        if (traceLevel)
-            DBGLOG("Roxie: multicast socket created port=%d sockbuffsize=%d actual %d", ccdMulticastPort, udpMulticastBufferSize, actualSize);
-        // TODO: get results from ccdChannels (static)
-		Owned<IPropertyTreeIterator> it = ccdChannels->getElements("RoxieSlaveProcess");
-        ForEach(*it)
-        {
-            unsigned channel = it->query().getPropInt("@channel", 0);
-            assertex(channel);
-            joinMulticastChannel(channel);
-        }
-        joinMulticastChannel(0); // all slaves also listen on channel 0
-    }
+	if (!multicastSocket)
+	{
+		multicastSocket.setown(ISocket::udp_create(ccdMulticastPort));
+		if (multicastTTL)
+		{
+			multicastSocket->set_ttl(multicastTTL);
+			DBGLOG("Roxie: multicastTTL: %u", multicastTTL);
+		}
+		else
+			DBGLOG("Roxie: multicastTTL not set");
+		multicastSocket->set_receive_buffer_size(udpMulticastBufferSize);
+		size32_t actualSize = multicastSocket->get_receive_buffer_size();
+		if (actualSize < udpMulticastBufferSize)
+		{
+			DBGLOG("Roxie: multicast socket buffer size could not be set (requested=%d actual %d", udpMulticastBufferSize, actualSize);
+			throwUnexpected();
+		}
+		if (traceLevel)
+			DBGLOG("Roxie: multicast socket created port=%d sockbuffsize=%d actual %d", ccdMulticastPort, udpMulticastBufferSize, actualSize);
+		
+		//Owned<IPropertyTreeIterator> it = ccdChannels->getElements("RoxieSlaveProcess");
+		//ForEach(*it)
+		//{
+		//	unsigned channel = it->query().getPropInt("@channel", 0);
+		//	assertex(channel);
+		//	joinMulticastChannel(channel);
+		//}
+		//joinMulticastChannel(0); // all slaves also listen on channel 0
+	}
 }
 
 void addEndpoint(unsigned channel, const IpAddress &slaveIp, unsigned port)
@@ -180,23 +156,23 @@ void addEndpoint(unsigned channel, const IpAddress &slaveIp, unsigned port)
 
 void closeMulticastSockets()
 {
-    delete[] slaveEndpoints;
-    slaveEndpoints = NULL;
-    multicastSocket.clear();
+	delete[] slaveEndpoints;
+	slaveEndpoints = NULL;
+	multicastSocket.clear();
 }
 
 size32_t channelWrite(unsigned channel, void const* buf, size32_t size)
 {
-    size32_t minwrote = 0;
-    SocketEndpointArray &eps = slaveEndpoints[channel]; // if multicast is enabled, this will have a single multicast endpoint in it.
-    assertex(eps.ordinality());
-    ForEachItemIn(idx, eps)
-    {
-        size32_t wrote = multicastSocket->udp_write_to(eps.item(idx), buf, size);
-        if (!idx || wrote < minwrote)
-            minwrote = wrote;
-    }
-    return minwrote;
+	size32_t minwrote = 0;
+	SocketEndpointArray &eps = slaveEndpoints[channel]; // if multicast is enabled, this will have a single multicast endpoint in it.
+	assertex(eps.ordinality());
+	ForEachItemIn(idx, eps)
+	{
+		size32_t wrote = multicastSocket->udp_write_to(eps.item(idx), buf, size);
+		if (!idx || wrote < minwrote)
+			minwrote = wrote;
+	}
+	return minwrote;
 }
 
 // #define TEST_SLAVE_FAILURE
@@ -801,8 +777,9 @@ public:
                 IRoxieQueryPacket *queued = waiting.item(i);
                 if (queued && queued->queryHeader().matchPacket(header))
                 {
-                    bool primChannel = true;
-                    if (subChannels[header.channel] != 1) primChannel = false;
+                    //bool primChannel = true;
+                    //if (subChannels[header.channel] != 1) primChannel = false;
+					bool primChannel = roxieClusterManager->getChannel(header.channel)->isPrimChannel();
                     if (traceLevel > 0)
                     {
                         StringBuffer xx; 
@@ -1072,6 +1049,7 @@ public:
         hash64_t queryHash = packet->queryHeader().queryHash;
         unsigned activityId = packet->queryHeader().activityId & ~ROXIE_PRIORITY_MASK;
         Owned<IQueryFactory> queryFactory = getQueryFactory(queryHash, channel);
+		IRoxieChannel *channelRecord = roxieClusterManager->getChannel(channel);
         if (!queryFactory && logctx.queryWuid())
         {
 			DBGLOG("[Roxie][Queue] connecting to Dali...");
@@ -1094,25 +1072,34 @@ public:
             if (logctx.queryTraceLevel() > 8) 
             {
                 StringBuffer x;
-                logctx.CTXLOG("IBYTI delay controls : doIbytiDelay=%s numslaves=%u subchnl=%u : %s",
-                    doIbytiDelay?"YES":"NO", 
-                    numSlaves[channel], subChannels[channel],
-                    header.toString(x).str());
+                //logctx.CTXLOG("IBYTI delay controls : doIbytiDelay=%s numslaves=%u subchnl=%u : %s",
+                //    doIbytiDelay?"YES":"NO", 
+                //    numSlaves[channel], subChannels[channel],
+                //    header.toString(x).str());
+				logctx.CTXLOG("IBYTI delay controls : doIbytiDelay=%s numslaves=%u : %s",
+					  doIbytiDelay?"YES":"NO", 
+			          channelRecord->getNumOfParticipantNodes(),
+				      header.toString(x).str());
             }
             bool debugging = logctx.queryDebuggerActive();
             if (debugging)
             {
-                if (subChannels[channel] != 1) 
+                //if (subChannels[channel] != 1) 
+				if (!channelRecord->isPrimChannel())
                     abortJob = true;  // when debugging, we always run on primary only...
             }
-            else if (doIbytiDelay && (numSlaves[channel] > 1)) 
+            //else if (doIbytiDelay && (numSlaves[channel] > 1)) 
+			else if (doIbytiDelay && (channelRecord->getNumOfParticipantNodes() > 1))
             {
-                bool primChannel = true;
-                if (subChannels[channel] != 1) 
-                    primChannel = false;
+                //bool primChannel = true;
+                //if (subChannels[channel] != 1) 
+                //    primChannel = false;
+				bool primChannel = channelRecord->isPrimChannel();
                 bool myTurnToDelayIBYTI =  true;  // all slaves will delay, except one
                 unsigned hdrHashVal = header.priorityHash();
-                if ((((hdrHashVal % numSlaves[channel]) + 1) == subChannels[channel]))
+                //if ((((hdrHashVal % numSlaves[channel]) + 1) == subChannels[channel]))
+				// TODO: is this correct here?
+				if ((((hdrHashVal % channelRecord->getNumOfParticipantNodes()) + 1) == channelRecord->getNumOfParticipantNodes()))
                     myTurnToDelayIBYTI =  false;
 
                 if (myTurnToDelayIBYTI) 
@@ -1122,7 +1109,7 @@ public:
                     {
                         StringBuffer x;
                         logctx.CTXLOG("YES myTurnToDelayIBYTI channel=%s delay=%u hash=%u %s", primChannel?"primary":"secondary", delay, hdrHashVal, header.toString(x).str());
-                    }
+					}
                     
                     // MORE: this code puts the penalty on all slaves on this channel,
                     //       change it to have one for each slave on every channel.
@@ -1209,7 +1196,8 @@ public:
                         throw MakeStringException(ROXIE_FILE_ERROR, "Simulate File Exception in slave NOW");
                         break;
                     case 4:
-                        if (numSlaves[channel] == 1) 
+						// TODO: do we need to take care of this?
+                        if (numSlaves[channel] == 1)
                         {
                             logctx.CTXLOG("--------------- Setting numSlaves[channel=%u] to 2 to force one way to act as two way for ibyti logic testing - testCase=%u ------", channel, testCaseType);
                             numSlaves[channel] = 2;
@@ -1426,6 +1414,7 @@ protected:
     RoxieQueue loQueue;
     Owned <IThreadPool> loWorkers;
     unsigned numWorkers;
+	IRoxieCluster *roxieCluster;
 
     void abortChannel(unsigned channel, IThreadPool *workers)
     {
@@ -1443,7 +1432,7 @@ public:
 #ifdef ROXIE_SLA_LOGIC
     RoxieReceiverBase(unsigned _numWorkers) : numWorkers(_numWorkers), slaQueue(headRegionSize), hiQueue(headRegionSize), loQueue(headRegionSize)
 #else
-    RoxieReceiverBase(unsigned _numWorkers) : numWorkers(_numWorkers), hiQueue(headRegionSize), loQueue(headRegionSize)
+    RoxieReceiverBase(unsigned _numWorkers, IRoxieClsuter *_roxieClsuter) : numWorkers(_numWorkers), roxieCluster(_roxieCluster), hiQueue(headRegionSize), loQueue(headRegionSize)
 #endif
     {
         loWorkers.setown(createThreadPool("RoxieLoWorkers", this, NULL, numWorkers));
@@ -1453,6 +1442,8 @@ public:
 #endif
         CriticalBlock b(ccdChannelsCrit);
 		// TODO: read channel settings
+
+		/*
         Owned<IPropertyTreeIterator> it = ccdChannels->getElements("RoxieSlaveProcess");
         ForEach(*it)
         {
@@ -1466,6 +1457,13 @@ public:
             IBYTIDelays[channel] = initIbytiDelay;
             channels[channelCount++] = channel;
         }
+		*/
+
+		// initialize for thw while array because the number of channel is not fixed
+		for (int i = 0; i < MAX_CLUSTER_SIZE; i++)
+		{
+			IBYTIDelays[i] = initIbytiDelay;
+		}
     }
 
     virtual bool checkSuspended(const RoxiePacketHeader &header, const IRoxieContextLogger &logctx)
@@ -1473,7 +1471,8 @@ public:
         bool suspended;
         {
             SpinBlock b(suspendCrit);
-            suspended = suspendedChannels[header.channel];
+            //suspended = suspendedChannels[header.channel];
+			suspended = roxieClusterManager->getChannel(header.channel)->isSuspended();
         }
         if (suspended)
         {
@@ -1505,13 +1504,17 @@ public:
     virtual bool suspendChannel(unsigned channel, bool suspend, const IRoxieContextLogger &logctx)
     {
         assertex(channel < MAX_CLUSTER_SIZE);
+		IRoxieChannel *channelRecord = roxieClusterManager->getChannel(channel);
         bool prev;
         {
             SpinBlock b(suspendCrit);
-            prev = suspendedChannels[channel];
-            suspendedChannels[channel] = suspend;
+            //prev = suspendedChannels[channel];
+            //suspendedChannels[channel] = suspend;
+			prev = channelRecord->isSuspended();
+			channelRecord->suspend();
         }
-        if (suspend && subChannels[channel] && !prev)
+        //if (suspend && subChannels[channel] && !prev)
+		if (suspend && channelRecord->getNumOfParticipantNodes() && !prev)
         {
             logctx.CTXLOG("ERROR: suspending channel %d - aborting active queries", channel);
 #ifdef ROXIE_SLA_LOGIC
@@ -1820,7 +1823,8 @@ public:
         }
 
         IpAddress snifferIp;
-        getChannelIp(snifferIp, snifferChannel);
+        //getChannelIp(snifferIp, snifferChannel);
+		getChannelIp(snifferIp, roxieClusterManager->getSnifferChannel()->getChannelIndex());
         if (udpMaxSlotsPerClient > udpQueueSize)
             udpMaxSlotsPerClient = udpQueueSize;
         unsigned serverFlowPort = topology->getPropInt("@serverFlowPort", CCD_SERVER_FLOW_PORT);
@@ -2082,8 +2086,9 @@ public:
                 // If it's a retry, look it up against already running, or output stream, or input queue
                 // if found, send an IBYTI and discard retry request
                 
-                bool primChannel = true;
-                if (subChannels[header.channel] != 1) primChannel = false;
+                //bool primChannel = true;
+                //if (subChannels[header.channel] != 1) primChannel = false;
+				bool primChannel = roxieClusterManager->getChannel(header.channel)->isPrimChannel();
                 if (primChannel) 
                     atomic_inc(&retriesReceivedPrm); 
                 else  
@@ -2142,10 +2147,22 @@ public:
                     // So retries and other communication with Roxie server (which uses non-0 channel numbers) will not cause double work or confusion.
                     // Unfortunately this is bad news for dropping packets
 					// TODO: fix static channelCount
+					/*
                     for (unsigned i = 1; i < channelCount; i++)
                         queue.enqueue(packet->clonePacket(channels[i]));
                     header.channel = channels[0];
                     queue.enqueue(packet.getClear());
+					*/
+					for (IRoxieChannel *channel : roxieClusterManager->getChannelList())
+					{
+						if (!channel->isLocal())
+						{
+							queue.enqueue(packet->clonePacket(channel->getChannelIndex()));
+						}
+					}
+					header.channel = roxieClusterManager->getLocalChannel()->getChannelIndex();
+					queue.enqueue(packet.getClear());
+
                 }
             }
         }
@@ -2165,7 +2182,7 @@ public:
                 // NOTE - this thread needs to do as little as possible - just read packets and queue them up - otherwise we can get packet loss due to buffer overflow
                 // DO NOT put tracing on this thread except at very high tracelevels!
                 unsigned l;
-                multicastSocket->read(mb.reserve(maxPacketSize), sizeof(RoxiePacketHeader), maxPacketSize, l, 5);
+				multicastSocket->read(mb.reserve(maxPacketSize), sizeof(RoxiePacketHeader), maxPacketSize, l, 5);
                 mb.setLength(l);
                 atomic_inc(&packetsReceived);
                 RoxiePacketHeader &header = *(RoxiePacketHeader *) mb.toByteArray();
@@ -2592,10 +2609,14 @@ public:
                 // Turn broadcast packet (channel 0), as early as possible, into non-0 channel packets.
                 // So retries and other communication with Roxie server (which uses non-0 channel numbers) will not cause double work or confusion.
 			    // TODO: fix static channelCount
-				for (unsigned i = 0; i < channelCount; i++)
-                {
-                    targetQueue->enqueue(packet->clonePacket(channels[i]));
-                }
+				//for (unsigned i = 0; i < channelCount; i++)
+                //{
+                //    targetQueue->enqueue(packet->clonePacket(channels[i]));
+                //}
+				for (IRoxieChannel *channel : roxieClusterManager->getChannelList())
+				{
+					targetQueue->enqueue(packet->clonePacket(channel->getChannelIndex()));
+				}
             }
         }
     }
