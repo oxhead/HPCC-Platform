@@ -1787,7 +1787,7 @@ bool CSafeSocket::readBlock(StringBuffer &ret, unsigned timeout, HttpHelper *pHt
             isAdmin = true;
 
 #define MAX_HTTP_HEADERSIZE 8000 // is this size big enough?
-            pHttpHelper->setIsHttp(true);
+			pHttpHelper->setHttpMethod(HttpMethod::POST);
             char header[MAX_HTTP_HEADERSIZE + 1]; // allow room for \0
             sock->read(header, 1, MAX_HTTP_HEADERSIZE, bytesRead, timeout);
             header[bytesRead] = 0;

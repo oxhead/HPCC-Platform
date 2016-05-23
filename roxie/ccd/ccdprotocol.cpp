@@ -1684,11 +1684,11 @@ readAnother:
         StringAttr queryName;
         StringAttr queryPrefix;
         bool stripWhitespace = msgctx->getStripWhitespace();
-		if (!isAdmin && (mlFmt == MarkupFmt_XML || mlFmt == MarkupFmt_JSON))
+		if (!isAdmin && (mlRequestFmt == MarkupFmt_XML || mlRequestFmt == MarkupFmt_JSON))
 		{
 			DBGLOG("[Roxie][Protocol] extracting query name");
 			DBGLOG("[Roxie][Protocol] rawText=%s", rawText.str());
-			QueryNameExtractor extractor(mlFmt, stripWhitespace);
+			QueryNameExtractor extractor(mlRequestFmt, stripWhitespace);
 			extractor.extractName(rawText.str(), logctx, peerStr, ep.port);
 			queryName.set(extractor.name);
 			queryPrefix.set(extractor.prefix);

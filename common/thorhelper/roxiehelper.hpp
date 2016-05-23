@@ -28,6 +28,8 @@
 
 //========================================================================================= 
 
+static bool dummy = false;
+
 void parseHttpParameterString(IProperties *p, const char *str);
 
 enum class HttpMethod {NONE, GET, POST};
