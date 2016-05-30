@@ -240,6 +240,7 @@ public:
 
     CRoxieQueryPacket(const void *_data, int lengthRemaining) : data((RoxiePacketHeader *) _data)
     {
+		DBGLOG("queue:CRoxieQueryPacket length=%d", lengthRemaining);
         assertex(lengthRemaining >= sizeof(RoxiePacketHeader));
         data->packetlength = lengthRemaining;
         const byte *finger = (const byte *) (data + 1);
@@ -816,6 +817,7 @@ public:
                     StringBuffer xx; 
                     l.CTXLOG("discarded %s", header.toString(xx).str());
 #endif
+					print_stacktrace();
                     // Already done in doIBYTI()...queue.remove() !!!!! atomic_inc(&ibytiPacketsWorked);
                     waiting.set(i, NULL);
                     queued->Release();
@@ -1185,6 +1187,7 @@ public:
             if (!skip)
             {
 #endif
+				DBGLOG("# run slave activity -> activityId=%u", activityId);
                 Owned<IMessagePacker> output = activity->process();
                 if (logctx.queryTraceLevel() > 5)
                 {
@@ -1573,6 +1576,7 @@ public:
 protected:
     void doFileCallback(IRoxieQueryPacket *packet)
     {
+		DBGLOG("ROQ:doFileCallback");
         // This is called on the main slave reader thread so needs to be as fast as possible to avoid lost packets
         const char *lfn;
         const char *data;
@@ -1691,6 +1695,7 @@ public:
 
     virtual void sendPacket(IRoxieQueryPacket *x, const IRoxieContextLogger &logctx)
     {
+		DBGLOG("ROQ:sendPacket");
         RoxiePacketHeader &header = x->queryHeader();
 
         unsigned length = x->queryHeader().packetlength;
@@ -2002,6 +2007,7 @@ public:
 
     void processMessage(MemoryBuffer &mb, RoxiePacketHeader &header, RoxieQueue &queue, IThreadPool *workers)
     {
+		DBGLOG("RoxieSocketQueueManager:processMessage -> activityId=%u", header.activityId);
         // NOTE - this thread needs to do as little as possible - just read packets and queue them up - otherwise we can get packet loss due to buffer overflow
         // DO NOT put tracing on this thread except at very high tracelevels!
 
@@ -2138,6 +2144,7 @@ public:
                     processMessage(mb, header, slaQueue, slaWorkers);
                 else
 #endif
+				DBGLOG("RoxieSocketQueueManager:run -> receive a packet for %u", header.activityId);
                 if (header.activityId & ROXIE_HIGH_PRIORITY)
                     processMessage(mb, header, hiQueue, hiWorkers);
                 else
@@ -2378,6 +2385,7 @@ public:
 
     virtual IMessageResult* getNextResult(unsigned time_out, bool &anyActivity)
     {
+		DBGLOG("CLocalMessageCollator:getNextResult");
         anyActivity = false;
         if (!sem.wait(time_out))
             return NULL;
@@ -2393,6 +2401,7 @@ public:
 
     virtual void enqueueMessage(bool outOfBand, void *data, unsigned datalen, void *meta, unsigned metalen, void *header, unsigned headerlen)
     {
+		DBGLOG("CLocalMessageCollator:enqueueMessage");
         CriticalBlock c(crit);
         if (outOfBand)
             pending.enqueueHead(new CLocalMessageResult(data, datalen, meta, metalen, header, headerlen));
@@ -2404,6 +2413,7 @@ public:
 
     virtual unsigned queryBytesReceived() const
     {
+		DBGLOG("queue:CLocalMessageCollator::queryBytesReceived");
         return totalBytesReceived;
     }
 };
@@ -2508,6 +2518,7 @@ public:
 
     virtual void sendPacket(IRoxieQueryPacket *packet, const IRoxieContextLogger &logctx)
     {
+		DBGLOG("RoxieLocalQueueManager:sendPacket");
         RoxiePacketHeader &header = packet->queryHeader();
         unsigned retries = header.thisChannelRetries();
         if (header.activityId == ROXIE_FILECALLBACK || header.activityId == ROXIE_DEBUGCALLBACK )

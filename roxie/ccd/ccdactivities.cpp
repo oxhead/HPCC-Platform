@@ -367,6 +367,7 @@ protected:
     CRoxieSlaveActivity(SlaveContextLogger &_logctx, IRoxieQueryPacket *_packet, HelperFactory *_hFactory, const CSlaveActivityFactory *_factory)
         : logctx(_logctx), packet(_packet), basefactory(_factory)
     {
+		DBGLOG("ac:CRoxieSlaveActivity -> new");
         allowFieldTranslation = _factory->getEnableFieldTranslation();
         resent = packet->getContinuationLength() != 0;
         serializedCreate.setBuffer(packet->getContextLength(), (void *) packet->queryContextData(), false);
@@ -846,6 +847,7 @@ public:
         numParallel(_numParallel),
         forceUnkeyed(_forceUnkeyed)
     {
+		DBGLOG("graph:CRoxieDiskReadBaseActivity -> new");
         helper = (IHThorDiskReadBaseArg *) basehelper;
         variableFileName = allFilesDynamic || basefactory->queryQueryFactory().isDynamic() || ((helper->getFlags() & (TDXvarfilename|TDXdynamicfilename)) != 0);
         isOpt = (helper->getFlags() & TDRoptional) != 0;
@@ -880,12 +882,15 @@ public:
 
     virtual const char *queryDynamicFileName() const
     {
+		DBGLOG("graph:queryDynamicFileName -> filename=%s", helper->getFileName());
         return helper->getFileName();
     }
 
     virtual void setVariableFileInfo()
     {
+
         unsigned channel = packet->queryHeader().channel;
+		DBGLOG("graph:setVariableFileInfo -> channel=%s", channel);
         varFiles.setown(varFileInfo->getIFileIOArray(isOpt, channel)); // MORE could combine 
         manager.setown(varFileInfo->getIndexManager(isOpt, channel, varFiles, diskSize, false, 0));
     }
@@ -984,6 +989,7 @@ public:
     CRoxieDiskBaseActivityFactory(IPropertyTree &_graphNode, unsigned _subgraphId, IQueryFactory &_queryFactory, HelperFactory *_helperFactory)
         : CSlaveActivityFactory(_graphNode, _subgraphId, _queryFactory, _helperFactory)
     {
+		DBGLOG("graph:CRoxieDiskBaseActivityFactory -> new");
         Owned<IHThorDiskReadBaseArg> helper = (IHThorDiskReadBaseArg *) helperFactory();
         bool variableFileName = allFilesDynamic || queryFactory.isDynamic() || ((helper->getFlags() & (TDXvarfilename|TDXdynamicfilename)) != 0);
         if (!variableFileName)
@@ -1039,6 +1045,7 @@ public:
         IInMemoryIndexManager *_manager)
         : CRoxieDiskReadBaseActivity(_logctx, _packet, _hFactory, _aFactory, _manager, 0, 1, false)
     {
+		DBGLOG("graph:CRoxieDiskReadActivity -> new");
         onCreate();
         helper = (IHThorDiskReadArg *) basehelper;
     }
@@ -1728,6 +1735,7 @@ ISlaveActivityFactory *createRoxieXmlReadActivityFactory(IPropertyTree &_graphNo
 
 ISlaveActivityFactory *createRoxieDiskReadActivityFactory(IPropertyTree &_graphNode, unsigned _subgraphId, IQueryFactory &_queryFactory, HelperFactory *_helperFactory)
 {
+	DBGLOG("@ createRoxieDiskReadActivityFactory");
     return new CRoxieDiskReadActivityFactory(_graphNode, _subgraphId, _queryFactory, _helperFactory);
 }
 
@@ -4274,9 +4282,10 @@ public:
     CRoxieFetchActivityFactory(IPropertyTree &_graphNode, unsigned _subgraphId, IQueryFactory &_queryFactory, HelperFactory *_helperFactory)
         : CSlaveActivityFactory(_graphNode, _subgraphId, _queryFactory, _helperFactory)
     {
-        Owned<IHThorFetchBaseArg> helper = (IHThorFetchBaseArg *) helperFactory();
+		Owned<IHThorFetchBaseArg> helper = (IHThorFetchBaseArg *) helperFactory();
         IHThorFetchContext * fetchContext = static_cast<IHThorFetchContext *>(helper->selectInterface(TAIfetchcontext_1));
-        bool variableFileName = allFilesDynamic || queryFactory.isDynamic() || ((fetchContext->getFetchFlags() & (FFvarfilename|FFdynamicfilename)) != 0);
+		DBGLOG("CRoxieFetchActivityFactory -> new => fname=%s", fetchContext->getFileName());
+		bool variableFileName = allFilesDynamic || queryFactory.isDynamic() || ((fetchContext->getFetchFlags() & (FFvarfilename|FFdynamicfilename)) != 0);
         if (!variableFileName)
         {
             bool isOpt = (fetchContext->getFetchFlags() & FFdatafileoptional) != 0;
@@ -4321,6 +4330,7 @@ public:
     CRoxieFetchActivityBase(SlaveContextLogger &_logctx, IRoxieQueryPacket *_packet, HelperFactory *_hFactory, const CRoxieFetchActivityFactory *_aFactory)
         : CRoxieSlaveActivity(_logctx, _packet, _hFactory, _aFactory), factory(_aFactory)
     {
+		DBGLOG("ac:CRoxieFetchActivityBase -> new");
         helper = (IHThorFetchBaseArg *) basehelper;
         fetchContext = static_cast<IHThorFetchContext *>(helper->selectInterface(TAIfetchcontext_1));
         base = 0;
@@ -4334,11 +4344,13 @@ public:
 
     virtual const char *queryDynamicFileName() const
     {
+		DBGLOG("CRoxieFetchActivityBase::queryDynamicFileName -> fileName=%s", fetchContext->getFileName());
         return fetchContext->getFileName();
     }
 
     virtual void setVariableFileInfo()
     {
+		DBGLOG("CRoxieFetchActivityBase::setVariableFileInfo");
         varFiles.setown(varFileInfo->getIFileIOArray(isOpt, packet->queryHeader().channel));
     }
 
@@ -4352,6 +4364,7 @@ public:
 
 IMessagePacker *CRoxieFetchActivityBase::process()
 {
+	DBGLOG("ac:CRoxieFetchActivityBase::process");
     MTIME_SECTION(queryActiveTimer(), "CRoxieFetchActivityBase::process");
     Owned<IMessagePacker> output = ROQ->createOutputStream(packet->queryHeader(), false, logctx);
     unsigned accepted = 0;
@@ -4416,6 +4429,7 @@ public:
     CRoxieFetchActivity(SlaveContextLogger &_logctx, IRoxieQueryPacket *_packet, HelperFactory *_hFactory, const CRoxieFetchActivityFactory *_aFactory)
         : CRoxieFetchActivityBase(_logctx, _packet, _hFactory, _aFactory)
     {
+		DBGLOG("ac:CRoxieFetchActivity -> new");
         IHThorFetchContext * fetchContext = static_cast<IHThorFetchContext *>(helper->selectInterface(TAIfetchcontext_1));
         IOutputMetaData *diskMeta = fetchContext->queryDiskRecordSize();
         diskAllocator.setown(getRowAllocator(diskMeta, basefactory->queryId()));
@@ -4424,6 +4438,8 @@ public:
 
     virtual size32_t doFetch(ARowBuilder & rowBuilder, offset_t pos, offset_t rawpos, void *inputData)
     {
+		DBGLOG("CRoxieFetchActivity:doFetch -> pos=%u, rawpos=%u", pos, rawpos);
+		//print_stacktrace();
         RtlDynamicRowBuilder diskRowBuilder(diskAllocator);
         deserializeSource.reset(pos);
         unsigned sizeRead = rowDeserializer->deserialize(diskRowBuilder.ensureRow(), deserializeSource);
@@ -4547,6 +4563,7 @@ public:
 
 void CRoxieFetchActivityBase::setPartNo(bool filechanged)
 {
+	DBGLOG("CRoxieFetchActivityBase::setPartNo");
     rawFile.setown(variableFileName ? varFiles->getFilePart(lastPartNo.partNo, base) : factory->getFilePart(lastPartNo.partNo, base)); // MORE - superfiles
     assertex(rawFile != NULL);
     rawStream.setown(createFileSerialStream(rawFile, 0, -1, 0));

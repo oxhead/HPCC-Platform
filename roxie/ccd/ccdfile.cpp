@@ -103,6 +103,7 @@ public:
     CLazyFileIO(IFile *_logical, offset_t size, const CDateTime &_date, unsigned _crc, bool _isCompressed)
         : logical(_logical), fileSize(size), crc(_crc), isCompressed(_isCompressed), fileStats(diskLocalStatistics)
     {
+		DBGLOG("ccd:CLazyFileIO -> filename=%s", _logical->queryFilename());
         fileDate.set(_date);
         currentIdx = 0;
         current.set(&failure);
@@ -625,7 +626,8 @@ class CRoxieFileCache : public CInterface, implements ICopyFileProgress, impleme
                            const StringArray &remoteLocationInfo,
                            offset_t size, const CDateTime &modified, unsigned crc)
     {
-        Owned<IFile> local = createIFile(localLocation);
+		DBGLOG("CRoxieFileCache:openFile -> lfn=%s, partNo=%u, localLocaltion=%s, size=%u", lfn, partNo, localLocation, size);
+		Owned<IFile> local = createIFile(localLocation);
         bool isCompressed = testMode ? false : pdesc->queryOwner().isCompressed();
         Owned<CLazyFileIO> ret = new CLazyFileIO(local.getLink(), size, modified, crc, isCompressed);
         RoxieFileStatus fileStatus = fileUpToDate(local, size, modified, crc, isCompressed);
@@ -767,6 +769,7 @@ class CRoxieFileCache : public CInterface, implements ICopyFileProgress, impleme
 
     bool doCopyFile(ILazyFileIO *f, const char *tempFile, const char *targetFilename, const char *destPath, const char *msg, CFflags copyFlags=CFnone)
     {
+		DBGLOG("CRoxieFileCazhe:doCopyFile -> tempFile=%s, targetFilename=%s, destPath=%s, msg=%s", tempFile, targetFilename, destPath, msg);
         bool fileCopied = false;
         IFile *sourceFile;
         try
@@ -868,6 +871,7 @@ class CRoxieFileCache : public CInterface, implements ICopyFileProgress, impleme
 
     bool doCopy(ILazyFileIO *f, bool background, bool displayFirstFileMessage, CFflags copyFlags=CFnone)
     {
+		DBGLOG("CRoxieFileCache:doCopy");
         if (!f->isRemote())
             f->copyComplete();
         else
@@ -900,6 +904,7 @@ public:
 
     CRoxieFileCache(bool _testMode = false) : bct(*this), hct(*this), testMode(_testMode)
     {
+		DBGLOG("CRoxieFileCache -> new");
         aborting = false;
         closing = false;
         closePending[false] = false;
@@ -939,6 +944,7 @@ public:
 
         virtual int run()
         {
+			DBGLOG("BackgroundCopyThread:run");
             return owner.runBackgroundCopy();
         }
     } bct;
@@ -1357,6 +1363,7 @@ public:
 
 ILazyFileIO *createPhysicalFile(const char *id, IPartDescriptor *pdesc, IPartDescriptor *remotePDesc, RoxieFileType fileType, int numParts, bool startCopy, unsigned channel)
 {
+	DBGLOG("createPhysicalFile -> type=%u, parts=%u, channel%u", fileType, numParts, channel);
     StringArray remoteLocations;
     const char *peerCluster = pdesc->queryOwner().queryProperties().queryProp("@cloneFromPeerCluster");
     if (peerCluster)
@@ -1440,6 +1447,7 @@ public:
     CFilePartMap(const char *_fileName, IFileDescriptor &fdesc)
         : fileName(_fileName)
     {
+		DBGLOG("CFilePartMap:new -> fileName=%s", _fileName);
         numParts = fdesc.numParts();
         IPropertyTree &props = fdesc.queryProperties();
         recordCount = props.getPropInt64("@recordCount", -1);
@@ -1475,6 +1483,7 @@ public:
     virtual bool IsShared() const { return CInterface::IsShared(); };
     virtual unsigned mapOffset(offset_t pos) const
     {
+		DBGLOG("CFilePartMap:mapOffset -> pos=%u", pos);
         FilePartMapElement *part = (FilePartMapElement *) bsearch(&pos, map, numParts, sizeof(map[0]), compareParts);
         if (!part)
             throw MakeStringException(ROXIE_DATA_ERROR, "CFilePartMap: file position %" I64F "d in file %s out of range (max offset permitted is %" I64F "d)", pos, fileName.str(), totalSize);
@@ -1508,6 +1517,7 @@ public:
 
 extern IFilePartMap *createFilePartMap(const char *fileName, IFileDescriptor &fdesc)
 {
+	DBGLOG("file:createFilePartMap -> fileName=%s", fileName);
     return new CFilePartMap(fileName, fdesc);
 }
 
@@ -1558,6 +1568,7 @@ public:
 
     virtual IFileIO *getFilePart(unsigned partNo, offset_t &base)
     {
+		DBGLOG("CFileIOArray::getFilePart -> partNo=%u, base=%u", partNo, base);
         if (!files.isItem(partNo))
         {
             DBGLOG("getFilePart requested invalid part %d", partNo);
@@ -1743,6 +1754,7 @@ public:
     CResolvedFile(const char *_lfn, const char *_physicalName, IDistributedFile *_dFile, RoxieFileType _fileType, IRoxieDaliHelper* _daliHelper, bool isDynamic, bool cacheIt, bool writeAccess, bool _isSuperFile)
     : daliHelper(_daliHelper), lfn(_lfn), physicalName(_physicalName), dFile(_dFile), fileType(_fileType), isSuper(_isSuperFile)
     {
+		DBGLOG("ccd:CResolvedFile -> logicalName=%s, physicalName=%s, fileType=%u", +lfn, _physicalName, _fileType);
         cached = NULL;
         fileSize = 0;
         fileCheckSum = 0;
@@ -1939,6 +1951,7 @@ public:
     }
     IFileIOArray *createIFileIOArray(bool isOpt, unsigned channel) const
     {
+		DBGLOG("createIFileIOArray -> channel=%u", channel);
         Owned<CFileIOArray> f = new CFileIOArray();
         f->addFile(NULL, 0, NULL);
         ForEachItemIn(idx, subFiles)

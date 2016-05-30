@@ -1323,6 +1323,7 @@ public:
     {
         try
         {
+			DBGLOG("CHttpRequestAsyncFor Do -> idx=%u", idx);
             IPropertyTree &request = requestArray.item(idx);
             Owned<IHpccProtocolResponse> protocol = createProtocolResponse(request.queryName(), &client, httpHelper, logctx, flags, xmlReadFlags);
             sink->onQueryMsg(msgctx, &request, protocol, flags, xmlReadFlags, querySetName, idx, memused, slaveReplyLen);
@@ -1795,6 +1796,7 @@ readAnother:
                     {
                         client->setHttpMode(queryName, isRequestArray, httpHelper);
                         querySetName.set(httpHelper.queryTarget());
+						DBGLOG("querySetName=%s", querySetName.str());
                         if (querySetName.length())
                         {
                             const char *target = global->targetAliases->queryProp(querySetName.str());
@@ -1805,7 +1807,8 @@ readAnother:
                     if (msgctx->initQuery(querySetName, queryName))
                     {
                         int bindCores = queryPT->getPropInt("@bindCores", msgctx->getBindCores());
-                        if (bindCores > 0)
+						DBGLOG("bindCores=%d", bindCores);
+						if (bindCores > 0)
                             listener->setThreadAffinity(bindCores);
                         IArrayOf<IPropertyTree> requestArray;
                         if (isHTTP)
@@ -1815,6 +1818,7 @@ readAnother:
                                 StringBuffer reqIterString;
                                 reqIterString.append(queryName).append("Request");
 
+								DBGLOG("requestString=%s", reqIterString.str());
                                 Owned<IPropertyTreeIterator> reqIter = queryPT->getElements(reqIterString.str());
                                 ForEach(*reqIter)
                                 {
@@ -1868,15 +1872,18 @@ readAnother:
                             msgctx->setTraceLevel(queryPT->getPropInt("@traceLevel", logctx.queryTraceLevel()));
                         }
 
+						DBGLOG("ready to execute the query");
                         msgctx->noteQueryActive();
 
                         if (isHTTP)
                         {
+							DBGLOG("execute with CHttpRequestAsyncFor");
                             CHttpRequestAsyncFor af(queryName, sink, msgctx, requestArray, *client, httpHelper, protocolFlags, memused, slavesReplyLen, sanitizedText, logctx, (PTreeReaderOptions)readFlags, querySetName);
                             af.For(requestArray.length(), global->numRequestArrayThreads);
                         }
                         else
                         {
+							DBGLOG("execute with direct mode");
                             Owned<IHpccProtocolResponse> protocol = createProtocolResponse(queryPT->queryName(), client, httpHelper, logctx, protocolFlags, (PTreeReaderOptions)readFlags);
                             sink->onQueryMsg(msgctx, queryPT, protocol, protocolFlags, (PTreeReaderOptions)readFlags, querySetName, 0, memused, slavesReplyLen);
                         }

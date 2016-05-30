@@ -109,6 +109,7 @@ static bool isSimpleIndexActivity(ThorActivityKind kind)
 
 const char *queryNodeFileName(const IPropertyTree &graphNode, ThorActivityKind kind)
 {
+	DBGLOG("state:queryNodeFileName");
     if (isSimpleIndexActivity(kind))
         return NULL;
     else
@@ -117,6 +118,7 @@ const char *queryNodeFileName(const IPropertyTree &graphNode, ThorActivityKind k
 
 const char *queryNodeIndexName(const IPropertyTree &graphNode, ThorActivityKind kind)
 {
+	DBGLOG("state:queryNodeIndexName");
     if (isSimpleIndexActivity(kind))
         return _queryNodeFileName(graphNode);
     else
@@ -371,6 +373,7 @@ public:
     // Lookup a filename in the cache
     virtual IResolvedFile *lookupCache(const char *filename)
     {
+		DBGLOG("state:CResolvedFileCache::lookupCache -> filename=%s", filename);
         CriticalBlock b(cacheLock);
         IResolvedFile *cache = files.getValue(filename);
         if (cache)
@@ -395,6 +398,7 @@ static Owned<KeptLowerCaseAtomTable> daliMisses;
 
 static void noteDaliMiss(const char *filename)
 {
+	DBGLOG("state:noteDaliMiss -> filename=%s", filename);
     CriticalBlock b(daliMissesCrit);
     if (traceLevel > 9)
         DBGLOG("noteDaliMiss %s", filename);
@@ -436,6 +440,7 @@ protected:
     // Use local package file only to resolve subfile into physical file info
     IResolvedFile *resolveLFNusingPackage(const char *fileName) const
     {
+		DBGLOG("state:CRoxiePackageNode::resolveLFNusingPackage -> fileName=%s", fileName);
         if (node)
         {
             StringBuffer xpath;
@@ -453,6 +458,7 @@ protected:
     // Use dali to resolve subfile into physical file info
     static IResolvedFile *resolveLFNusingDaliOrLocal(const char *fileName, bool useCache, bool cacheResult, bool writeAccess, bool alwaysCreate, bool resolveLocal)
     {
+		DBGLOG("state:CRoxiePackageNode::resolveLFNusingDaliOrLocal -> fileName=%s", fileName);
         // MORE - look at alwaysCreate... This may be useful to implement earlier locking semantics.
         if (traceLevel > 9)
             DBGLOG("resolveLFNusingDaliOrLocal %s %d %d %d %d", fileName, useCache, cacheResult, writeAccess, alwaysCreate);
@@ -526,6 +532,7 @@ protected:
     // Use local package and its bases to resolve existing file into physical file info via all supported resolvers
     IResolvedFile *lookupExpandedFileName(const char *fileName, bool useCache, bool cacheResult, bool writeAccess, bool alwaysCreate, bool checkCompulsory) const
     {
+		DBGLOG("state:CRoxiePackageNode::lookupExpandedFileName -> fileName=%s", fileName);
         IResolvedFile *result = lookupFile(fileName, useCache, cacheResult, writeAccess, alwaysCreate);
         if (!result && (!checkCompulsory || !isCompulsory()))
             result = resolveLFNusingDaliOrLocal(fileName, useCache, cacheResult, writeAccess, alwaysCreate, resolveLocally());
@@ -534,6 +541,7 @@ protected:
 
     IResolvedFile *lookupFile(const char *fileName, bool useCache, bool cacheResult, bool writeAccess, bool alwaysCreate) const
     {
+		DBGLOG("state:CRoxiePackageNode::lookupFile -> fileName=%s", fileName);
         // Order of resolution: 
         // 1. Files named in package
         // 2. Files named in bases
@@ -597,6 +605,7 @@ protected:
 
     void doPreload(unsigned channel, const IResolvedFile *resolved)
     {
+		DBGLOG("state:CRoxiePackageNode::doPreload -> channel=%u", channel);
         if (resolved->isKey())
             keyArrays.append(*resolved->getKeyArray(NULL, NULL, false, channel, false));
         else
@@ -677,6 +686,7 @@ public:
 
     virtual const IResolvedFile *lookupFileName(const char *_fileName, bool opt, bool useCache, bool cacheResult, IConstWorkUnit *wu, bool ignoreForeignPrefix) const
     {
+		DBGLOG("state:CRoxiePackageNode::lookupFileName -> fileName=%s", _fileName);
         StringBuffer fileName;
         expandLogicalFilename(fileName, _fileName, wu, false, ignoreForeignPrefix);
         if (traceLevel > 5)
@@ -698,6 +708,7 @@ public:
 
     virtual IRoxieWriteHandler *createFileName(const char *_fileName, bool overwrite, bool extend, const StringArray &clusters, IConstWorkUnit *wu) const
     {
+		DBGLOG("state:CRoxiePackageNode::createFileName -> fileName=%s", _fileName);
         StringBuffer fileName;
         expandLogicalFilename(fileName, _fileName, wu, false, false);
         Owned<IResolvedFile> resolved = lookupFile(fileName, false, false, true, true);
@@ -775,6 +786,7 @@ typedef CResolvedPackage<CRoxiePackageNode> CRoxiePackage;
 
 IRoxiePackage *createRoxiePackage(IPropertyTree *p, IRoxiePackageMap *packages)
 {
+	DBGLOG("state:createRoxiePackage");
     Owned<CRoxiePackage> pkg = new CRoxiePackage(p);
     pkg->resolveBases(packages);
     return pkg.getClear();

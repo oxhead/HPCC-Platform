@@ -484,6 +484,7 @@ public:
 
     IFileDescriptor *checkClonedFromRemote(const char *_lfn, IFileDescriptor *fdesc, bool cacheIt)
     {
+		DBGLOG("dali:CRoxieDaliHelper::checkClonedFromRemote -> logicalName=%s", _lfn);
         // NOTE - we rely on the fact that  queryNamedGroupStore().lookup caches results,to avoid excessive load on remote dali
         if (_lfn && !strnicmp(_lfn, "foreign", 7)) //if need to support dali hopping should add each remote location
             return NULL;
@@ -535,6 +536,7 @@ public:
 
     virtual IDistributedFile *resolveLFN(const char *logicalName, bool cacheIt, bool writeAccess)
     {
+		DBGLOG("dali:CRoxieDaliHelper::resolveLFN -> logicalName=%s, cacheIt=%u", logicalName, cacheIt);
         if (isConnected)
         {
             unsigned start = msTick();
@@ -559,6 +561,7 @@ public:
 
     virtual IFileDescriptor *resolveCachedLFN(const char *logicalName)
     {
+		DBGLOG("dali:CRoxieDaliHelper::resolveCachedLFN -> logicalName=%s", logicalName);
         StringBuffer xpath("Files/F.");
         normalizeName(logicalName, xpath);
         Owned<IPropertyTree> pt = readCache(xpath.str());

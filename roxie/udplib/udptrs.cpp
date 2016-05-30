@@ -924,6 +924,7 @@ public:
 #ifndef _WIN32
         setpriority(PRIO_PROCESS, 0, -3);
 #endif
+		DBGLOG("CSendManager:new -> server_flow_port=%d, d_port=%d, client_flow_port=%d, sniffer_port=%d, numQueues=%d", server_flow_port, d_port, client_flow_port, sniffer_port, _numQueues);
         numNodes = getNumNodes();
         receive_flow_port = client_flow_port;
         send_flow_port = server_flow_port;
@@ -953,6 +954,7 @@ public:
 
     void writeOwn(unsigned destNodeIndex, DataBuffer *buffer, unsigned len, unsigned queue)
     {
+		DBGLOG("CSendManager:writeOwn -> dest=%u", destNodeIndex);
         // NOTE: takes ownership of the DataBuffer
         assert(queue < numQueues);
         assert(destNodeIndex < numNodes);

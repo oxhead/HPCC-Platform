@@ -807,6 +807,7 @@ public:
     CReceiveManager(int server_flow_port, int d_port, int client_flow_port, int snif_port, const IpAddress &multicast_ip, int queue_size, int m_slot_pr_client, unsigned _myNodeIndex)
         : collatorThread(*this)
     {
+		DBGLOG("CReceiveManager:new -> server_flow_port=%d, d_port=%d, client_flow_port=%d, snif_port=%d", server_flow_port, d_port, client_flow_port, snif_port);
 #ifndef _WIN32
         setpriority(PRIO_PROCESS, 0, -15);
 #endif
@@ -872,7 +873,9 @@ public:
 
     void collatePacket(DataBuffer *dataBuff)
     {
+		DBGLOG("udp:CReceiveManager::collatePacket");
         const UdpPacketHeader *pktHdr = (UdpPacketHeader*) dataBuff->data;
+		//DBGLOG("udp:CReceiveManager::collatePacket -> ruid=%u", pktHdr->ruid);
         manager->noteReceived(*pktHdr);
 
         if (udpTraceLevel >= 4) 
@@ -906,7 +909,7 @@ public:
         }
         if (msgColl) 
         {
-            if (msgColl->add_package(dataBuff)) 
+            if (msgColl->add_package(dataBuff))
             {
                 dataBuff = 0;
             }
@@ -927,6 +930,7 @@ public:
 
     virtual IMessageCollator *createMessageCollator(IRowManager *rowManager, ruid_t ruid)
     {
+		DBGLOG("createMessageCollator -> ruid=%u", ruid);
         IMessageCollator *msgColl = createCMessageCollator(rowManager, ruid);
         if (udpTraceLevel >= 2) DBGLOG("UdpReceiver: createMessageCollator %p %u", msgColl, ruid);
         SpinBlock b(collatorsLock);

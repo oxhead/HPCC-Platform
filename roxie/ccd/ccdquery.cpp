@@ -502,6 +502,7 @@ public:
 protected:
     IRoxieServerActivityFactory *createActivityFactory(ThorActivityKind kind, unsigned subgraphId, IPropertyTree &node)
     {
+		DBGLOG("query:CQueryFactory::createActivityFactory -> kind=%u", kind);
         unsigned id = node.getPropInt("@id", 0);
         unsigned rid = id;
 
@@ -1650,6 +1651,7 @@ static void checkWorkunitVersionConsistency(const IQueryDll *dll)
 
 extern IQueryFactory *createServerQueryFactory(const char *id, const IQueryDll *dll, const IRoxiePackage &package, const IPropertyTree *stateInfo, bool isDynamic, bool forceRetry)
 {
+	DBGLOG("query:createServerQueryFactory -> id=%s", id);
     CriticalBlock b(CQueryFactory::queryCreateLock);
     IArrayOf<IResolvedFile> queryFiles; // Note - these should stay in scope long enough to ensure still cached when (if) query is loaded for real
     hash64_t hashValue = CQueryFactory::getQueryHash(id, dll, package, stateInfo, queryFiles, isDynamic);
@@ -1681,6 +1683,7 @@ extern IQueryFactory *createServerQueryFactory(const char *id, const IQueryDll *
 
 extern IQueryFactory *createServerQueryFactoryFromWu(IConstWorkUnit *wu)
 {
+	DBGLOG("query:createServerQueryFactoryFromWu");
     Owned<const IQueryDll> dll = createWuQueryDll(wu);
     if (!dll)
         return NULL;
@@ -1700,7 +1703,10 @@ class CSlaveQueryFactory : public CQueryFactory
 
     void loadSlaveNode(IPropertyTree &node, unsigned subgraphId, ActivityArray *activities)
     {
-        ThorActivityKind kind = getActivityKind(node);
+		DBGLOG("query:CSlaveQueryFactory::loadSlaveNode -> subgraphId=%u", subgraphId);
+		print_stacktrace();
+		ThorActivityKind kind = getActivityKind(node);
+		DBGLOG("query:CSlaveQueryFactory::loadSlaveNode -> kind=%u", kind);
         switch (kind)
         {
         case TAKcsvread:

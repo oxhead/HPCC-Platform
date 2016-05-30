@@ -713,6 +713,8 @@ public:
     {
         input = (unsigned) -1;
         inputidx = 0;
+		DBGLOG("CRoxieServerActivityFactory -> id=%u, subgraphdId=%u", _id, _subgraphId);
+		//print_stacktrace();
     }
 
     inline void setInput(unsigned idx, unsigned source, unsigned sourceidx)
@@ -727,6 +729,7 @@ public:
 
     virtual unsigned getInput(unsigned idx, unsigned &sourceidx) const
     {
+		DBGLOG("CRoxieServerActivityFactory::getInput -> idx=%u, sourceIdx=%u", idx, sourceidx);
         if (!idx)
         {
             sourceidx = inputidx;
@@ -873,6 +876,7 @@ extern IEngineRowStream * ensureSingleStream(IRoxieSlaveContext *ctx, PointerArr
 {
     if (instreams.length() != 1)
     {
+		DBGLOG("ensureSingleStream -> multiple input stream");
         assertex(instreams.length());
         if (!junction)
             junction.setown(createStrandJunction(ctx->queryRowManager(), instreams.length(), 1, ctx->queryOptions().strandBlockSize, false));
@@ -882,12 +886,16 @@ extern IEngineRowStream * ensureSingleStream(IRoxieSlaveContext *ctx, PointerArr
         }
         return junction->queryOutput(0);
     }
-    else
-        return instreams.item(0);
+	else
+	{
+		DBGLOG("graph:ensureSingleStream -> single input stream");
+		return instreams.item(0);
+	}
 }
 
 extern IEngineRowStream *connectSingleStream(IRoxieSlaveContext *ctx, IFinalRoxieInput *input, unsigned idx, Owned<IStrandJunction> &junction, bool consumerOrdered)
 {
+	DBGLOG("connectSingleStream -> with junction");
     if (input)
     {
         PointerArrayOf<IEngineRowStream> instreams;
@@ -900,6 +908,8 @@ extern IEngineRowStream *connectSingleStream(IRoxieSlaveContext *ctx, IFinalRoxi
 
 extern IEngineRowStream *connectSingleStream(IRoxieSlaveContext *ctx, IFinalRoxieInput *input, unsigned idx, bool consumerOrdered)
 {
+	DBGLOG("connectSingleStream -> ordered");
+
     Owned<IStrandJunction> junction;
     IEngineRowStream * result = connectSingleStream(ctx, input, idx, junction, consumerOrdered);
     assertex(!junction);
@@ -952,6 +962,8 @@ public:
           stats(_factory ? _factory->queryStatsMapping() : actStatistics),
           probeManager(_probeManager)
     {
+		DBGLOG("CRoxieServerActivity => new1");
+		DBGLOG("\tactivityId=%u", activityId);
         input = NULL;
         sourceIdx = 0;
         inputStream = NULL;
@@ -969,6 +981,7 @@ public:
     
     CRoxieServerActivity(IRoxieSlaveContext *_ctx, IHThorArg & _helper) : ctx(_ctx), factory(NULL), basehelper(_helper), stats(allStatistics)
     {
+		DBGLOG("CRoxieServerActivity => new2");
         activityId = 0;
         input = NULL;
         inputStream = NULL;
@@ -1136,7 +1149,9 @@ public:
 
     virtual const IResolvedFile *resolveLFN(const char *filename, bool isOpt)
     {
-        return ctx->resolveLFN(filename, isOpt);
+		DBGLOG("graph:CRoxieServerActivity::resolveLFN -> filename=%s", filename);
+		print_stacktrace();
+		return ctx->resolveLFN(filename, isOpt);
     }
 
     virtual const IResolvedFile *queryVarFileInfo() const
@@ -1194,6 +1209,7 @@ public:
 
     inline void start(unsigned parentExtractSize, const byte *parentExtract, bool paused)
     {
+		DBGLOG("CRoxieServerActivity::start");
         CriticalBlock cb(statecrit);
         if (state != STATEreset && state != STATEstarting)
         {
@@ -1211,8 +1227,9 @@ public:
         }
 #endif
         executeDependencies(parentExtractSize, parentExtract, 0);
-        if (input)
-            input->start(parentExtractSize, parentExtract, paused);
+		if (input)
+		{   input->start(parentExtractSize, parentExtract, paused);
+		}
         ensureCreated();
         basehelper.onStart(parentExtract, NULL);
         if (factory)
@@ -1222,9 +1239,11 @@ public:
 
     void executeDependencies(unsigned parentExtractSize, const byte *parentExtract, unsigned controlId)
     {
+		DBGLOG("CRoxieServerActivity::executeDependencies");
         //MORE: Create a filtered list and then use asyncfor
         ForEachItemIn(idx, dependencies)
         {
+			DBGLOG("\tidx=%u", idx);
             if (dependencyControlIds.item(idx) == controlId)
                 dependencies.item(idx).execute(parentExtractSize, parentExtract);
         }
@@ -1255,6 +1274,7 @@ public:
 
     virtual IFinalRoxieInput *queryInput(unsigned idx) const
     {
+		DBGLOG("CRoxieServerActivity::queryInput -> idx=%u", idx);
         if (idx==0) 
             return input;
         else
@@ -1345,6 +1365,7 @@ public:
 
     virtual void addDependency(IRoxieServerActivity &source, unsigned sourceIdx, int controlId) 
     {
+		DBGLOG("CRoxieServerActivity::addDependency ->ensureCreated=%u, controlId=%d", sourceIdx, controlId);
         dependencies.append(source);
         dependencyIndexes.append(sourceIdx);
         dependencyControlIds.append(controlId);
@@ -1372,6 +1393,7 @@ public:
     }
     virtual void connectInputStreams(bool consumerOrdered)
     {
+		DBGLOG("CRoxieServerActivity::connectInputerStreams");
         if (input && !inputStream)
             inputStream = connectSingleStream(ctx, input, sourceIdx, junction, isInputOrdered(consumerOrdered, 0));
         if (!connected)
@@ -1435,6 +1457,7 @@ public:
 
     virtual IFinalRoxieInput *queryOutput(unsigned idx)
     {
+		DBGLOG("CRoxieServerActivity::queryOutput -> idx=%u", idx);
         if (idx == (unsigned) -1)
             idx = 0;
         return idx ? NULL : this;
@@ -1442,6 +1465,8 @@ public:
 
     virtual IOutputMetaData *queryOutputMeta() const
     { 
+		DBGLOG("CRoxieServerActivity::queryOutput");
+		//print_stacktrace();
         return meta.queryOriginal(); 
     } 
 
@@ -1984,6 +2009,7 @@ public:
 
     void setInput(IRecordPullerCallback *_helper, unsigned _sourceIdx, IFinalRoxieInput *_input)
     {
+		DBGLOG("RecordPullerThread::setInput -> input=%u", _input->queryActivity()->queryId());
         helper = _helper;
         input = _input;
         sourceIdx = _sourceIdx;
@@ -1996,6 +2022,8 @@ public:
 
     virtual void connectInputStreams(IRoxieSlaveContext *ctx, bool consumerOrdered)
     {
+		DBGLOG("RecordPullerThread::connectInputStreams");
+		//print_stacktrace();
         inputStream = connectSingleStream(ctx, input, sourceIdx, junction, consumerOrdered);
     }
 
@@ -2006,7 +2034,9 @@ public:
 
     void start(unsigned parentExtractSize, const byte *parentExtract, bool paused, unsigned preload, bool noThread, IRoxieSlaveContext *ctx)
     {
-        eof = false;
+		DBGLOG("RecordPullerThread::start -> preload=%u", preload);
+		DBGLOG("\tinput=%u", input->queryActivity()->queryId());
+		eof = false;
         eog = false;
         input->start(parentExtractSize, parentExtract, paused);
         startJunction(junction);
@@ -2095,6 +2125,7 @@ public:
 
     bool pullRecords(unsigned preload)
     {
+		DBGLOG("RecordPullerThread:pullRecords -> preload=%u", preload);
         if (eof)
             return false;
         while (preload)
@@ -3225,6 +3256,7 @@ class CRemoteResultAdaptor :public CInterface, implements IFinalRoxieInput, impl
 
         void makeHeap()
         {
+			DBGLOG("graph:CRemoteResultMerger::makeHeap");
             /* Permute blocks to establish the heap property
                For each element p, the children are p*2+1 and p*2+2 (provided these are in range)
                The children of p must both be greater than or equal to p
@@ -3280,6 +3312,7 @@ class CRemoteResultAdaptor :public CInterface, implements IFinalRoxieInput, impl
 
         void append(IRoxieServerQueryPacket *p, unsigned seq)
         {
+			DBGLOG("graph:CRemoteResultMerger::append");
             HeapEntry &h = *new HeapEntry(adaptor, LINK(p), seq);
             IMessageResult *result = p->queryResult();
             assertex(result);
@@ -3419,7 +3452,8 @@ class CRemoteResultAdaptor :public CInterface, implements IFinalRoxieInput, impl
                             adaptor.activity.serializeSkipInfo(serializedSkip, seekLen, rawSeek, numFields, seek, stepExtra);
                             continuation->setPacket(continuation->queryPacket()->insertSkipData(serializedSkip.length(), serializedSkip.toByteArray()));
                             ROQ->sendPacket(continuation->queryPacket(), adaptor.activity.queryLogCtx());
-                            adaptor.sentsome.signal();
+							DBGLOG("@ CRemoteResultMerger::skipRows -> signal 4");
+							adaptor.sentsome.signal();
                         }
                         numPending++;
                     }
@@ -3496,7 +3530,8 @@ class CRemoteResultAdaptor :public CInterface, implements IFinalRoxieInput, impl
                             if (adaptor.activity.queryLogCtx().queryTraceLevel() > 10)
                                 adaptor.activity.queryLogCtx().CTXLOG("About to send continuation, from doContinuation");
                             ROQ->sendPacket(continuation->queryPacket(), adaptor.activity.queryLogCtx());
-                            adaptor.sentsome.signal();
+							DBGLOG("@ CRemoteResultMerger::doContinuation -> signal 5");
+							adaptor.sentsome.signal();
                         }
                         numPending++;   // we are waiting for one that is already in flight
                     }
@@ -3550,6 +3585,7 @@ class CRemoteResultAdaptor :public CInterface, implements IFinalRoxieInput, impl
 
     IRoxieServerQueryPacket *createRoxieServerQueryPacket(IRoxieQueryPacket *p, bool &cached)
     {
+		DBGLOG("CRemoteResultAdaptor:createRoxieServerQueryPacket");
         if (serverSideCache && !debugContext)
         {
             IRoxieServerQueryPacket *ret = serverSideCache->findCachedResult(activity.queryLogCtx(), p);
@@ -3613,6 +3649,7 @@ class CRemoteResultAdaptor :public CInterface, implements IFinalRoxieInput, impl
 
     void checkDelayed()
     {
+		//DBGLOG("CRemoteResultAdaptor:checkDelayed");
         if (ctx->queryDebugContext() && ctx->queryDebugContext()->getExecuteSequentially())
         {
             bool allDelayed = true;
@@ -3641,7 +3678,8 @@ class CRemoteResultAdaptor :public CInterface, implements IFinalRoxieInput, impl
                     activity.queryLogCtx().CTXLOG("About to send debug-deferred from next");
                 pending.item(sendIdx).setDelayed(false);
                 ROQ->sendPacket(pending.item(sendIdx).queryPacket(), activity.queryLogCtx());
-                sentsome.signal();
+				DBGLOG("@ CRemoteResultAdaptor::checkDelay -> signal 7");
+				sentsome.signal();
             }
         }
         else if (deferredStart)
@@ -3656,7 +3694,8 @@ class CRemoteResultAdaptor :public CInterface, implements IFinalRoxieInput, impl
                         activity.queryLogCtx().CTXLOG("About to send deferred start from next");
                     p.setDelayed(false);
                     ROQ->sendPacket(p.queryPacket(), activity.queryLogCtx());
-                    sentsome.signal();
+					DBGLOG("@ CRemoteResultAdaptor::checkDelay -> signal 8");
+					sentsome.signal();
                 }
             }
             deferredStart = false;
@@ -3856,6 +3895,7 @@ public:
 //private:   //vc6 doesn't like this being private yet accessed by nested class...
     const void *getRow(IMessageUnpackCursor *mu) 
     {
+		DBGLOG("CRemoteResultAdaptor:getRow");
         if (!mu->isSerialized() || (meta.isFixedSize() && !deserializer))
             return mu->getNext(meta.getFixedSize());
         else
@@ -3886,6 +3926,7 @@ private:
 
     ChannelBuffer *queryChannelBuffer(unsigned channel, bool force=false)
     {
+		//DBGLOG("ChannelBuffer::queryChannelBuffer -> channel=%u", channel);
         CriticalBlock cb(buffersCrit);
         ChannelBuffer *b = buffers[channel];
         if (!b && force)
@@ -3925,12 +3966,14 @@ private:
                 activity.serializeExtra(cachedContext);
                 if (activity.queryVarFileInfo())
                 {
+					DBGLOG("ChannelBuffer::queryChannelBuffer -> checksum=%u", activity.queryVarFileInfo()->queryCheckSum());
                     activity.queryVarFileInfo()->queryTimeStamp().serialize(cachedContext);
                     cachedContext.append(activity.queryVarFileInfo()->queryCheckSum());
                 }
                 contextCached = true;
             }
 
+			DBGLOG("queryChannelBuffer -> add one buffer to channel %u", channel);
             b = buffers[channel] = new ChannelBuffer(*this, channel);
         }
         return b;
@@ -3938,7 +3981,8 @@ private:
 
     void processRow(const void *got)
     {
-        processed++;
+		processed++;
+		//DBGLOG("CRemoteResultAdaptor:processRow -> processed=%u", processed);
         if (processed > rowLimit)
         {
             ReleaseRoxieRow(got);
@@ -3959,7 +4003,9 @@ public:
     CRemoteResultAdaptor(IRoxieSlaveContext *_ctx, IRoxieServerErrorHandler *_errorHandler, const RemoteActivityId &_remoteId, IOutputMetaData *_meta, IHThorArg &_helper, IRoxieServerActivity &_activity, bool _preserveOrder, bool _flowControlled)
         : remoteId(_remoteId), meta(_meta), activity(_activity), helper(_helper), preserveOrder(_preserveOrder), flowControlled(_flowControlled), merger(*this)
     {
-        ctx = _ctx;
+		DBGLOG("CRemoteResultAdaptor:new -> remoteActivityId=%u", _remoteId.activityId);
+		//print_stacktrace();
+		ctx = _ctx;
         errorHandler = _errorHandler;
         colocalArg = NULL;
         allread = false;
@@ -3982,7 +4028,7 @@ public:
         totalCycles = 0;
         serverSideCache = activity.queryServerSideCache();
         bufferStream.setown(createMemoryBufferSerialStream(tempRowBuffer));
-        rowSource.setStream(bufferStream);
+		rowSource.setStream(bufferStream);
         timeActivities = defaultTimeActivities;
     }
 
@@ -4023,6 +4069,7 @@ public:
 
     void send(IRoxieQueryPacket *p)
     {
+		DBGLOG("ChannelBuffer::send");
         if (p)
         {
             Linked<IRoxieQueryPacket> saver(p); // avoids a race with abortPending, without keeping pendingCrit locked over the send which we might prefer not to
@@ -4044,7 +4091,9 @@ public:
 
             if (p->queryHeader().channel)
             {
-                bool cached = false;
+				DBGLOG("ChannelBuffer::send -> channel=%u", p->queryHeader().channel);
+				//print_stacktrace();
+				bool cached = false;
                 IRoxieServerQueryPacket *rsqp = createRoxieServerQueryPacket(p, cached);
                 if (deferredStart)
                     rsqp->setDelayed(true);
@@ -4055,13 +4104,18 @@ public:
                 }
                 if (!deferredStart)
                 {
-                    if (!cached)
-                        ROQ->sendPacket(p, activity.queryLogCtx());
+					if (!cached)
+					{
+						DBGLOG("CRemoteResultAdaptor:send -> to RQQ");
+						ROQ->sendPacket(p, activity.queryLogCtx());
+					}
+					DBGLOG("CRemoteResultAdaptor:send -> signal lock");
                     sentsome.signal();
                 }
             }
             else
             {
+				DBGLOG("graph:ChannelBuffer::send -> no channel");
                 // Care is needed here. If I send the packet before I add to the pending there is a danger that I'll get results that I discard 
                 // Need to add first, then send
                 unsigned i;
@@ -4093,10 +4147,15 @@ public:
         }
     }
 
+	int counter = 0;
     void *getMem(unsigned partNo, unsigned fileNo, unsigned size)
     {
-        unsigned channel = partNo ? getBondedChannel(partNo) : 0;
-        size += sizeof(PartNoType);
+		counter++;
+		DBGLOG("(%u) CRemoteResultAdaptor::getMem -> partNo=%u, fileNo=%u, size=%u", counter, partNo, fileNo, size);
+		//print_stacktrace();
+		unsigned channel = partNo ? getBondedChannel(partNo) : 0;
+		DBGLOG("CRemoteResultAdaptor::getMem -> channel=%u", channel);
+		size += sizeof(PartNoType);
         ChannelBuffer *b = queryChannelBuffer(channel, true);
         char *buffer = (char *) b->getBuffer(size);
         if (!buffer)
@@ -4109,11 +4168,13 @@ public:
         sp.fileNo = fileNo;
         memcpy(buffer, &sp, sizeof(sp));
         buffer += sizeof(sp);
+		DBGLOG("(%u) CRemoteResultAdaptor::getMem -> completed", counter);
         return buffer;
     }
 
     void injectResult(IMessageResult *result)
     {
+		DBGLOG("CRemoteResultAdaptor:injectResult -> sentSequence=%u", sentSequence+1);
         IRoxieServerQueryPacket *f = new CRoxieServerQueryPacket(NULL);
         f->setSequence(sentSequence++);
         f->setResult(result);
@@ -4144,6 +4205,7 @@ public:
 
     void senddone()
     {
+		DBGLOG("CRemoteResultAdaptor::senddone");
         CriticalBlock b(pendingCrit);
         pending.append(*new CRoxieServerQueryPacketEndMarker);
         sentsome.signal();
@@ -4164,6 +4226,7 @@ public:
 
     virtual void onCreate(IHThorArg *_colocalArg)
     {
+		DBGLOG("CRemoteResultAdaptor::onCreate");
         debugContext = ctx->queryDebugContext();
         colocalArg = _colocalArg;
         if (meta.needsSerializeDisk())
@@ -4179,6 +4242,7 @@ public:
 
     virtual void onStart(unsigned _parentExtractSize, const byte * _parentExtract)
     {
+		DBGLOG("CRemoteResultAdaptor::onStart");
 #ifdef TRACE_STARTSTOP
         if (traceStartStop)
             activity.queryLogCtx().CTXLOG("RRAonstart");
@@ -4192,6 +4256,7 @@ public:
         {
             ROQ->queryReceiveManager()->detachCollator(mc); // Should never happen - implies someone forgot to call onReset!
         }
+		DBGLOG("CRemoteResultAdaptor::onStart -> ruid=%u", ruid);
         mc.setown(ROQ->queryReceiveManager()->createMessageCollator(rowManager, ruid));
         allread = false;
         mu.clear();
@@ -4237,6 +4302,7 @@ public:
             }
             pending.append(*new CRoxieServerQueryPacketLimitMarker(_rowLimit, _keyedLimit, _stopAfter));
         }
+		DBGLOG("@ CRemoteResultAdaptor::checkDelay -> signal 8");
         sentsome.signal();
         rowLimit = _rowLimit;
         keyedLimit = _keyedLimit;
@@ -4322,6 +4388,7 @@ public:
 
     const void * nextRowGE(const void *seek, const void *rawSeek, unsigned numFields, unsigned seekLen, bool &wasCompleteMatch, const SmartStepExtra & stepExtra)
     {
+		DBGLOG("CRemoteResultAdaptor:nextRowGE");
         if (activity.queryLogCtx().queryTraceLevel() > 20)
         {
             StringBuffer recstr;
@@ -4348,7 +4415,8 @@ public:
                     activity.serializeSkipInfo(serializedSkip, seekLen, rawSeek, numFields, seek, stepExtra);
                     p.setPacket(p.queryPacket()->insertSkipData(serializedSkip.length(), serializedSkip.toByteArray()));
                     ROQ->sendPacket(p.queryPacket(), activity.queryLogCtx());
-                    sentsome.signal();
+					DBGLOG("@ CRemoteResultAdaptor::nextRowGE -> signal ");
+					sentsome.signal();
                 }
             }
             deferredStart = false;
@@ -4376,6 +4444,8 @@ public:
 
     virtual const void *nextRow()
     {
+		//DBGLOG("CRemoteResultAdaptor:nextRow");
+		//print_stacktrace();
         // If we are merging then we need to do a heapsort on all 
         SimpleActivityTimer t(totalCycles, timeActivities);
         if (activity.queryLogCtx().queryTraceLevel() > 10)
@@ -4410,20 +4480,26 @@ public:
 
     bool reload()
     {
+		//DBGLOG("CRemoteResultAdaptor::reload");
+		//print_stacktrace();
         // Wait for something to be returned from a slave....
         mu.clear();
+		DBGLOG("[%u] CRemoteResultAdaptor::reload -> wait", activity.queryId());
         sentsome.wait();
+		DBGLOG("[%u] CRemoteResultAdaptor::reload -> acquire", activity.queryId());
         // must be at least an endMarker on the queue since sentsome was signalled
         { 
             CriticalBlock b(pendingCrit);
             IRoxieServerQueryPacket &top = pending.item(0);
             if (top.isLimit(rowLimit, keyedLimit, stopAfter)) // This is really a start marker...
             {
+				DBGLOG("[%u] CRemoteResultAdaptor::reload -> top", activity.queryId());
                 pending.remove(0);
                 return true;
             }
             else if (top.isEnd())
             {
+				DBGLOG("[%u] CRemoteResultAdaptor::reload -> end", activity.queryId());
                 pending.remove(0);
                 allread = true;
                 if (activity.queryLogCtx().queryTraceLevel() > 5)
@@ -4432,6 +4508,7 @@ public:
             }
             else if (mergeOrder)
             {
+				DBGLOG("[%u] CRemoteResultAdaptor::reload -> mergeOrder", activity.queryId());
                 unsigned idx = 0;
                 bool added = false;
                 while (pending.isItem(idx))
@@ -4441,6 +4518,7 @@ public:
                     {
                         if (merger.noteEndSeen())
                         {
+							DBGLOG("[%u] CRemoteResultAdaptor::reload -> signal 3", activity.queryId());
                             sentsome.signal(); // Because we waited, yet didn't actually consume anything
                             added = true;
                         }
@@ -4462,6 +4540,7 @@ public:
             }
             else if (top.hasResult())
             {
+				DBGLOG("[%u] CRemoteResultAdaptor::reload -> hasResult", activity.queryId());
                 mr.setown(pending.item(0).getResult());
                 mu.setown(mr->getCursor(rowManager));
                 pending.remove(0);
@@ -4471,21 +4550,26 @@ public:
         getNextUnpacker();
         return true;
     }
-
+	int cc = 0;
     void getNextUnpacker()
     {
+		DBGLOG("[%u] CRemoteResultAdaptor::getNextUnpacker", activity.queryId());
         mu.clear();
         unsigned ctxTraceLevel = activity.queryLogCtx().queryTraceLevel();
         loop
         {
-            checkDelayed();
+			checkDelayed();
             unsigned timeout = remoteId.isSLAPriority() ? slaTimeout : (remoteId.isHighPriority() ? highTimeout : lowTimeout);
             activity.queryContext()->checkAbort();
             bool anyActivity;
             if (ctxTraceLevel > 5)
                 activity.queryLogCtx().CTXLOG("Calling getNextUnpacker(%d)", timeout);
-            mr.setown(mc->getNextResult(timeout, anyActivity));
-            if (ctxTraceLevel > 6)
+            // blocking_call
+			cc++;
+			DBGLOG("[%u][%d] waiting for results", activity.queryId(), cc);
+			mr.setown(mc->getNextResult(timeout, anyActivity));
+			DBGLOG("[%u][%d] processing for results", activity.queryId(), cc);
+			if (ctxTraceLevel > 6)
                 activity.queryLogCtx().CTXLOG("Called getNextUnpacker(%d), activity=%d", timeout, anyActivity);
             activity.queryContext()->checkAbort();
             if (mr)
@@ -4711,6 +4795,7 @@ public:
                         break;
 
                     default:
+						DBGLOG("@@ default");
                         if (header.retries & ROXIE_RETRIES_MASK)
                             atomic_inc(&retriesNeeded);
                         unsigned metaLen;
@@ -4751,29 +4836,36 @@ public:
                             IRoxieQueryPacket *resend = createRoxiePacket(nextQuery);
                             CRoxieServerQueryPacket *fqp = new CRoxieServerQueryPacket(resend);
                             fqp->setSequence(original->getSequence()); 
-                            pending.add(*fqp, idx+1); // note that pending takes ownership. sendPacket does not release.
+							DBGLOG("@ add to the pending list");
+							pending.add(*fqp, idx+1); // note that pending takes ownership. sendPacket does not release.
                             original->setContinuation(LINK(fqp));
                             if (mergeOrder)
                                 fqp->setDelayed(true);
                             else
                             {
                                 ROQ->sendPacket(resend, activity.queryLogCtx());
-                                sentsome.signal();
+								DBGLOG("@ CRemoteResultAdaptor::getNextUnpacker -> signal 1");
+								sentsome.signal();
                             }
                             // Note that we don't attempt to cache results that have continuation records - too tricky !
                         }
                         else
                         {
+							DBGLOG("# server side cache");
                             if (serverSideCache)
                                 serverSideCache->noteCachedResult(original, mr);
                         }
                         unsigned channel = header.channel;
                         {
                             ChannelBuffer *b = queryChannelBuffer(channel); // If not something is wrong, or we sent out on channel 0?
-                            if (b)
-                                b->signal();
+							if (b)
+							{
+								DBGLOG("@ singlal channelbuffer");
+								b->signal();
+							}
                         }
                         original->setResult(mr.getClear());
+						DBGLOG("@ CRemoteResultAdaptor::getNextUnpacker -> signal 2");
                         sentsome.signal();
                         return;
                     }
@@ -21153,6 +21245,7 @@ public:
           maySkip(_maySkip),
           deserializeSource(NULL)
     {
+		DBGLOG("graph:CRoxieServerDiskReadBaseActivity -> new");
         forceRemote = factory->queryQueryFactory().queryOptions().disableLocalOptimizations;
         if ((forceRemote || numParts != 1) && !isLocal)  // NOTE : when numParts == 0 (variable case) we create, even though we may not use
             remote.setown(new CSkippableRemoteResultAdaptor(_ctx, this, remoteId, meta.queryOriginal(), helper, *this, sorted, false, _maySkip));
@@ -21182,6 +21275,7 @@ public:
 
     virtual void start(unsigned parentExtractSize, const byte *parentExtract, bool paused)
     {
+		DBGLOG("graph:CRoxieServerDiskReadBaseActivity::start");
         CRoxieServerActivity::start(parentExtractSize, parentExtract, paused);
         if (compoundHelper)
         {
@@ -22328,6 +22422,7 @@ protected:
 
     void setVariableFileInfo()
     {
+		DBGLOG("graph:CRoxieServerIndexActivity::setVariableFileInfo -> indexName=%s", indexHelper.getFileName());
         OwnedRoxieString indexName(indexHelper.getFileName());
         varFileInfo.setown(resolveLFN(indexName, isOpt));
         if (varFileInfo)
@@ -22350,6 +22445,7 @@ public:
           sorted(_sorted),
           isLocal(_isLocal) 
     {
+		DBGLOG("graph:CRoxieServerIndexActivity -> remoteId=%u, isLocal=%u", _remoteId.activityId, _isLocal);
         indexHelper.setCallback(&callback);
         steppedExtra = static_cast<IHThorSteppedSourceExtra *>(indexHelper.selectInterface(TAIsteppedsourceextra_1));
         variableFileName = allFilesDynamic || factory->queryQueryFactory().isDynamic() || ((indexHelper.getFlags() & (TIRvarfilename|TIRdynamicfilename)) != 0);
@@ -22429,10 +22525,12 @@ public:
                             }
                             if (seekGEOffset && !thisKey->isTopLevelKey())
                             {
+								DBGLOG("graph:CRoxieServerIndexActivity::processAllKeys -> not toplevelkey");
                                 tlk.setown(createSingleKeyMerger(thisKey, 0, seekGEOffset, this));
                             }
                             else
                             {
+								DBGLOG("graph:CRoxieServerIndexActivity::processAllKeys -> case2");
                                 tlk.setown(createKeyManager(thisKey, 0, this));
                                 tlk->setLayoutTranslator(translators->item(fileNo));
                             }
@@ -22458,6 +22556,7 @@ public:
                                             while (tlk->lookup(false))
                                             {
                                                 unsigned slavePart = (unsigned) tlk->queryFpos();
+												DBGLOG("graph:CRoxieServerIndexActivity::processAllKeys -> slavePart=%u", slavePart);
                                                 if (slavePart)
                                                 {
                                                     accepted++;
@@ -22605,6 +22704,7 @@ public:
         : CRoxieServerIndexReadBaseActivity(_ctx, _factory, _probeManager, _remoteId, _keySet, _translators, _sorted, _isLocal, _maySkip),
           readHelper((IHThorIndexReadArg &)basehelper)
     {
+		DBGLOG("CRoxieServerIndexReadActivity -> new");
         rawMeta = readHelper.queryRawSteppingMeta();
         unsigned flags = indexHelper.getFlags();
         optimizeSteppedPostFilter = (flags & TIRunfilteredtransform) != 0;
@@ -22679,6 +22779,7 @@ public:
         LazyLocalKeyReader(CRoxieServerIndexReadActivity &_owner, IKeyIndex *key, IRecordLayoutTranslator * trans)
             : owner(_owner)
         {
+			DBGLOG("graph:CRoxieServerIndexReadActivity:LazyLocalKeyReader -> new");
             keyedCount = 0;
             matched = 0;
             EOFseen = false;
@@ -24215,6 +24316,7 @@ public:
         : CRoxieServerActivity(_ctx, _factory, _probeManager), helper((IHThorFetchBaseArg &)basehelper), map(_map), remote(_ctx, this, _remoteId, meta.queryOriginal(), helper, *this, true, true), puller(false)
     {
         fetchContext = static_cast<IHThorFetchContext *>(helper.selectInterface(TAIfetchcontext_1));
+		DBGLOG("CRoxieServerFetchActivity -> fileName=%s", fetchContext->getFileName());
         needsRHS = helper.transformNeedsRhs();
         variableFileName = allFilesDynamic || factory->queryQueryFactory().isDynamic() || ((fetchContext->getFetchFlags() & (FFvarfilename|FFdynamicfilename)) != 0);
         isOpt = (fetchContext->getFetchFlags() & FFdatafileoptional) != 0;
@@ -24222,11 +24324,14 @@ public:
 
     virtual const IResolvedFile *queryVarFileInfo() const
     {
+		DBGLOG("graph:CRoxieServerFetchActivity::queryVarFileInfo");
+		//print_stacktrace();
         return varFileInfo;
     }
 
     virtual void onCreate(IHThorArg *_colocalParent)
     {
+		DBGLOG("CRoxieServerFetchActivity::onCreate");
         CRoxieServerActivity::onCreate(_colocalParent);
         remote.onCreate(_colocalParent);
     }
@@ -24235,17 +24340,21 @@ public:
     {
         if (idx)
             throw MakeStringException(ROXIE_SET_INPUT, "Internal error: setInput() parameter out of bounds at %s(%d)", __FILE__, __LINE__); 
-        puller.setInput(this, _sourceIdx, _in);
+		DBGLOG("CRoxieServerFetchActivity::setInput -> input=%u", _in->queryActivity()->queryId());
+		//print_stacktrace();
+		puller.setInput(this, _sourceIdx, _in);
     }
 
     virtual IStrandJunction *getOutputStreams(IRoxieSlaveContext *ctx, unsigned idx, PointerArrayOf<IEngineRowStream> &streams, const StrandOptions * consumerOptions, bool consumerOrdered, IOrderedCallbackCollection * orderedCallbacks)
     {
+		DBGLOG("CRoxieServerFetchActivity::getOutputStreams");
         puller.connectInputStreams(ctx, consumerOrdered);
         return CRoxieServerActivity::getOutputStreams(ctx, idx, streams, consumerOptions, consumerOrdered, orderedCallbacks);
     }
 
     virtual IFinalRoxieInput *queryInput(unsigned idx) const
     {
+		DBGLOG("CRoxieServerFetchActivity::queryInput -> idx=%u", idx);
         if (idx==0)
             return puller.queryInput();
         else
@@ -24255,13 +24364,16 @@ public:
 
     virtual void start(unsigned parentExtractSize, const byte *parentExtract, bool paused)
     {
+		DBGLOG("CRoxieServerFetchActivity::start");
         CRoxieServerActivity::start(parentExtractSize, parentExtract, paused);
         remote.onStart(parentExtractSize, parentExtract);
         remote.setLimits(helper.getRowLimit(), (unsigned __int64) -1, I64C(0x7FFFFFFFFFFFFFFF));
         if (variableFileName)
         {
             OwnedRoxieString fname(fetchContext->getFileName());
+			DBGLOG("@ fname=%s", fname.get());
             varFileInfo.setown(resolveLFN(fname, isOpt));
+			DBGLOG("@ numParts=%u, fileSize=%u, physicalName=%s, fileName=%s, exists=%u, isKey=%u", varFileInfo->getNumParts(), varFileInfo->getFileSize(), varFileInfo->queryPhysicalName(), varFileInfo->queryFileName(), varFileInfo->exists(), varFileInfo->isKey());
             if (varFileInfo)
                 map.setown(varFileInfo->getFileMap());
         }
@@ -24270,6 +24382,7 @@ public:
 
     virtual void stop()
     {
+		DBGLOG("CRoxieServerFetchActivity::stop");
         // Called from remote, so no need to call back to it....
         puller.stop();
         CRoxieServerActivity::stop();
@@ -24277,6 +24390,7 @@ public:
 
     virtual void reset()
     {
+		DBGLOG("CRoxieServerFetchActivity::reset");
         processed = remote.processed;
         remote.processed = 0;
         puller.reset();
@@ -24290,6 +24404,7 @@ public:
 
     virtual IFinalRoxieInput *queryOutput(unsigned idx)
     {
+		DBGLOG("CRoxieServerFetchActivity::queryOutput");
         if (idx==(unsigned)-1)
             idx = 0;
         return idx ? NULL : &remote;
@@ -24297,13 +24412,16 @@ public:
 
     virtual void processRow(const void *row)
     {
+		DBGLOG("CRoxieServerFetchActivity::processRow");
         // called from puller thread
         offset_t rp = fetchContext->extractPosition(row);
         unsigned partNo;
+		//DBGLOG("graph:CRoxieServerFetchActivity::processRow -> isLocalFpos=%u", isLocalFpos(rp));
         if (isLocalFpos(rp))
             partNo = getLocalFposPart(rp) + 1;
         else
             partNo = map->mapOffset(rp);
+		DBGLOG("CRoxieServerFetchActivity::processRow -> partNo=%u, offset=%u", partNo, rp);
         if (needsRHS)
         {
             Owned<IEngineRowAllocator> extractAllocator = ctx->queryCodeContext()->getRowAllocator(helper.queryExtractedSize(), activityId);
@@ -24336,6 +24454,7 @@ public:
 
     void processDone()
     {
+		DBGLOG("graph:CRoxieServerFetchActivity::processDone");
         // called from puller thread
         remote.flush();
         remote.senddone();
@@ -24393,6 +24512,8 @@ public:
 
     virtual IRoxieServerActivity *createActivity(IRoxieSlaveContext *_ctx, IProbeManager *_probeManager) const
     {
+		DBGLOG("CRoxieServerFetchActivityFactory::createActivity -> remoteId=%u", remoteId.activityId);
+		//print_stacktrace();
         return new CRoxieServerFetchActivity(_ctx, this, _probeManager, remoteId, map);
     }
 
@@ -26504,6 +26625,8 @@ public:
     }
     void setResult(unsigned id, IGraphResult * result)
     {
+		DBGLOG("CGraphResults::setResult -> id=%u", id);
+		print_stacktrace();
         CriticalBlock procedure(cs);
 
         if (results.ordinality() <= id)
@@ -26695,24 +26818,29 @@ public:
 
     void createGraph(IRoxieSlaveContext *_ctx)
     {
+		DBGLOG("CActivityGraph::createGraph");
         if (graphDefinition.isMultiInstance())
         {
             graphCodeContext.set(_ctx->queryCodeContext());
             _ctx = &graphSlaveContext;
         }
 
+		DBGLOG("\t1) create graph");
         ForEachItemIn(idx, graphDefinition)
         {
-            IRoxieServerActivityFactory &donor = graphDefinition.serverItem(idx);
+			IRoxieServerActivityFactory &donor = graphDefinition.serverItem(idx);
             IRoxieServerActivity &activity = *donor.createActivity(_ctx, probeManager);
-            activities.append(activity);
+			DBGLOG("\t\tidx=%u, activity=%u", idx, activity.queryId());
+			activities.append(activity);
             if (donor.isSink())
             {
+				DBGLOG("\t\t@this is a sink");
                 sinks.append(activity);
                 if (probeManager)
                     probeManager->noteSink(&activity);
             }
         }
+		DBGLOG("\t2) connect input");
         ForEachItemIn(idx1, graphDefinition)
         {
             IRoxieServerActivityFactory &donor = graphDefinition.serverItem(idx1);
@@ -26732,8 +26860,9 @@ public:
             IntArray &dependencyIndexes = donor.queryDependencyIndexes();
             IntArray &dependencyControlIds = donor.queryDependencyControlIds();
             StringArray &dependencyEdgeIds = donor.queryDependencyEdgeIds();
-            ForEachItemIn(idx2, dependencies)
+			ForEachItemIn(idx2, dependencies)
             {
+				DBGLOG("\t\tdependency=%u", idx2);
                 IRoxieServerActivity &dependencySourceActivity = activities.item(dependencies.item(idx2));
                 unsigned dependencySourceIndex = dependencyIndexes.item(idx2);
                 unsigned dependencyControlId = dependencyControlIds.item(idx2);
@@ -26742,18 +26871,22 @@ public:
                     probeManager->noteDependency( &dependencySourceActivity, dependencySourceIndex, dependencyControlId, dependencyEdgeIds.item(idx2), &activity);
             }
         }
+		DBGLOG("\t3) handle sink");
         ForEachItemIn(idx2, sinks)
         {
-            IRoxieServerActivity &sink = sinks.item(idx2);
+			IRoxieServerActivity &sink = sinks.item(idx2);
+			DBGLOG("\t\tsink activity=%u", sink.queryId());
             sink.connectInputStreams(true);
         }
     }
 
     void connectInput(unsigned target, unsigned targetIdx, unsigned source, unsigned sourceIdx, unsigned iteration)
     {
+		DBGLOG("CActivityGraph::connectInput -> target=%u, targetIdx=%u, source=%u, sourceIdx=%u, iter=%u", target, targetIdx, source, sourceIdx, iteration);
         IRoxieServerActivity &targetActivity = activities.item(target);
         IRoxieServerActivity &sourceActivity = activities.item(source);
         IFinalRoxieInput * output = sourceActivity.queryOutput(sourceIdx);
+		DBGLOG("\t%u->%u with %u", sourceActivity.queryId(), targetActivity.queryId(), output->queryActivity()->queryId());
         if (probeManager)
         {
             IRoxieProbe * inputProbe = probeManager->createProbe(static_cast<IInputBase*>(output), &sourceActivity, &targetActivity, sourceIdx, targetIdx, iteration);
@@ -26848,6 +26981,8 @@ public:
 
     void doExecute(unsigned parentExtractSize, const byte * parentExtract)
     {
+		DBGLOG("CActivityGraph::doExecute");
+		//print_stacktrace();
         if (sinks.ordinality()==1)
             sinks.item(0).execute(parentExtractSize, parentExtract);
 #ifdef PARALLEL_EXECUTE
@@ -26884,6 +27019,7 @@ public:
         {
             ForEachItemIn(idx, sinks)
             {
+				DBGLOG("CActivityGraph::doExecute -> idx=%u", idx);
                 IRoxieServerActivity &sink = sinks.item(idx);
                 sink.execute(parentExtractSize, parentExtract);
             }
@@ -26892,6 +27028,7 @@ public:
 
     virtual IEclGraphResults *evaluate(unsigned parentExtractSize, const byte * parentExtract)
     {
+		DBGLOG("CActivityGraph::evaluate -> parentExtractSize=%u", parentExtractSize);
         CriticalBlock block(evaluateCrit);
         results.setown(new CGraphResults);
         try
@@ -26935,6 +27072,7 @@ public:
 
     virtual void setInputResult(unsigned id, IGraphResult * result)
     {
+		DBGLOG("CActivityGraph::setInputResult -> id=%u", id);
         results->setResult(id, result);
     }
 
@@ -26985,7 +27123,9 @@ public:
     }
     virtual void setResult(unsigned id, IGraphResult * result)
     {
-        results->setResult(id, result);
+		DBGLOG("CActivityGraph::setResult -> id=%u", id);
+		print_stacktrace();
+		results->setResult(id, result);
     }
     virtual IEngineRowStream * createResultIterator(unsigned id)
     {
