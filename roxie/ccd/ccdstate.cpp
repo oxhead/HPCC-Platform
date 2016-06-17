@@ -465,6 +465,7 @@ protected:
         IResolvedFile* result = NULL;
         if (useCache)
         {
+			DBGLOG("\tuse cache");
             result = daliFiles.lookupCache(fileName);
             if (result)
             {
@@ -480,6 +481,7 @@ protected:
             {
                 if (daliHelper->connected())
                 {
+					DBGLOG("\tis connected to dali");
                     Owned<IDistributedFile> dFile = daliHelper->resolveLFN(fileName, cacheResult, writeAccess);
                     if (dFile)
                         result = createResolvedFile(fileName, NULL, dFile.getClear(), daliHelper, !useCache, cacheResult, writeAccess);
@@ -614,6 +616,7 @@ protected:
 
     void checkPreload()
     {
+		DBGLOG("state:CRoxiePackageNode::checkPreload");
         if (isPreload())
         {
             // Look through all files and resolve them now

@@ -420,6 +420,7 @@ protected:
 
     bool init(const char *lockPath, unsigned mode, IRemoteConnection *_conn, unsigned timeout, const char *msg)
     {
+        DBGLOG("CFileLockBase::init -> lockPath=%s, mode=%u", lockPath, mode);
         conn = NULL;
         lock.clear();
         CTimeMon tm(timeout);
@@ -2729,6 +2730,7 @@ public:
 
     IPropertyTree &queryAttributes()
     {
+        DBGLOG("CDistributedFileBase::queryAttributes");
         IPropertyTree *t = root->queryPropTree("Attr");
         if (!t)
             t = root->setPropTree("Attr",createPTree("Attr")); // takes ownership
@@ -3387,6 +3389,7 @@ public:
 
     CDistributedFile(CDistributedFileDirectory *_parent, IRemoteConnection *_conn,const CDfsLogicalFileName &lname,IUserDescriptor *user) // takes ownership of conn
     {
+        DBGLOG("CDistributedFile::new");
         setUserDescriptor(udesc,user);
         logicalName.set(lname);
         parent = _parent;
@@ -3397,6 +3400,9 @@ public:
 #ifdef EXTRA_LOGGING
         LOGPTREE("CDistributedFile.a root",root);
 #endif
+        StringBuffer out;
+        toXML(root, out);
+        DBGLOG("%s", out.str());
         Owned<IFileDescriptor> fdesc = deserializeFileDescriptorTree(root,&queryNamedGroupStore(),0);
 #ifdef EXTRA_LOGGING
         LOGFDESC("CDistributedFile.a fdesc",fdesc);
@@ -7377,6 +7383,7 @@ IDistributedFile *CDistributedFileDirectory::lookup(const char *_logicalname, IU
 
 IDistributedFile *CDistributedFileDirectory::dolookup(CDfsLogicalFileName &_logicalname, IUserDescriptor *user, bool writeattr, bool hold, bool lockSuperOwner, IDistributedFileTransaction *transaction, unsigned timeout)
 {
+    DBGLOG("CDistributedFileDirectory::dolookup");
     CDfsLogicalFileName *logicalname = &_logicalname;
     if (logicalname->isMulti()) 
         // don't bother checking because the sub file creation will
@@ -7388,17 +7395,20 @@ IDistributedFile *CDistributedFileDirectory::dolookup(CDfsLogicalFileName &_logi
     {
         checkLogicalName(*logicalname,user,true,writeattr,true,NULL);
         if (logicalname->isExternal()) {
+            DBGLOG("\tis external");
             Owned<IFileDescriptor> fDesc = getExternalFileDescriptor(logicalname->get());
             if (!fDesc)
                 return NULL;
             return queryDistributedFileDirectory().createExternal(fDesc, logicalname->get(), true);
         }
         if (logicalname->isForeign()) {
+            DBGLOG("\tis foreign");
             IDistributedFile * ret = getFile(logicalname->get(),user,NULL);
             if (ret)
                 return ret;
         }
         else {
+            DBGLOG("\tis something elase");
             unsigned start = 0;
             loop {
                 CFileLock fcl;
@@ -7416,6 +7426,7 @@ IDistributedFile *CDistributedFileDirectory::dolookup(CDfsLogicalFileName &_logi
                 }
                 if (fcl.getKind() == DXB_File)
                 {
+                    DBGLOG("\tkind=DXB_File");
                     StringBuffer cname;
                     if (logicalname->getCluster(cname).length())
                     {
@@ -7475,6 +7486,7 @@ IDistributedFile *CDistributedFileDirectory::dolookup(CDfsLogicalFileName &_logi
 
 IDistributedFile *CDistributedFileDirectory::lookup(CDfsLogicalFileName &logicalname, IUserDescriptor *user, bool writeattr, bool hold, bool lockSuperOwner, IDistributedFileTransaction *transaction, unsigned timeout)
 {
+    DBGLOG("CDistributedFileDirectory::lookup -> filename=%s", logicalname.get());
     return dolookup(logicalname, user, writeattr, hold, lockSuperOwner, transaction, timeout);
 }
 

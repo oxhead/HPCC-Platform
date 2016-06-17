@@ -1055,8 +1055,9 @@ public:
             return;
         }
         try
-        {   
-            if (logctx.queryTraceLevel() > 8) 
+        {
+            if (logctx.queryTraceLevel() > 0)
+            //if (logctx.queryTraceLevel() > 8)
             {
                 StringBuffer x;
                 logctx.CTXLOG("IBYTI delay controls : doIbytiDelay=%s numslaves=%u subchnl=%u : %s",
@@ -1075,6 +1076,7 @@ public:
                 bool primChannel = true;
                 if (subChannels[channel] != 1) 
                     primChannel = false;
+                DBGLOG("@@ channel=%u, subChannels=%u, numSlaves=%u, primary=%u", channel, subChannels[channel], numSlaves[channel], primChannel);
                 bool myTurnToDelayIBYTI =  true;  // all slaves will delay, except one
                 unsigned hdrHashVal = header.priorityHash();
                 if ((((hdrHashVal % numSlaves[channel]) + 1) == subChannels[channel]))
@@ -1083,7 +1085,8 @@ public:
                 if (myTurnToDelayIBYTI) 
                 {
                     unsigned delay = getIbytiDelay(channel, header);
-                    if (logctx.queryTraceLevel() > 6)
+                    if (logctx.queryTraceLevel() > 0)
+                    //if (logctx.queryTraceLevel() > 6)
                     {
                         StringBuffer x;
                         logctx.CTXLOG("YES myTurnToDelayIBYTI channel=%s delay=%u hash=%u %s", primChannel?"primary":"secondary", delay, hdrHashVal, header.toString(x).str());
@@ -1097,6 +1100,7 @@ public:
 
                     if (delay)
                     {
+                        DBGLOG("needs to delay with %u", delay);
                         ibytiSem.wait(delay);
                         if (abortJob)
                             resetIbytiDelay(channel); // we know there is an active buddy on the channel...
@@ -1138,6 +1142,7 @@ public:
             atomic_inc(&activitiesStarted);
             Owned <ISlaveActivityFactory> factory = queryFactory->getSlaveActivityFactory(activityId);
             assertex(factory);
+            //IRoxieSlaveActivity *currentActivity = factory->createActivity(logctx, packet);
             setActivity(factory->createActivity(logctx, packet));
 #ifdef TEST_SLAVE_FAILURE
             bool skip = false;
@@ -1944,7 +1949,8 @@ public:
         atomic_inc(&ibytiPacketsReceived);
         bool preActivity = false;
 
-        if (traceLevel > 10)
+        if (traceLevel > 0)
+//        if (traceLevel > 10)
         {
             IpAddress peer;
             StringBuffer s, s1;
@@ -1959,7 +1965,8 @@ public:
             abortRunning(header, workers, false, preActivity);
             queue.remove(header);
 
-            if (traceLevel > 10)
+            if (traceLevel > 0)
+            //if (traceLevel > 10)
             {
                 StringBuffer s; 
                 DBGLOG("Abort activity %s", header.toString(s).str());
@@ -2007,7 +2014,7 @@ public:
 
     void processMessage(MemoryBuffer &mb, RoxiePacketHeader &header, RoxieQueue &queue, IThreadPool *workers)
     {
-		DBGLOG("RoxieSocketQueueManager:processMessage -> activityId=%u", header.activityId);
+		DBGLOG("RoxieSocketQueueManager:processMessage -> server=%u, activityId=%u", header.serverIdx, header.activityId);
         // NOTE - this thread needs to do as little as possible - just read packets and queue them up - otherwise we can get packet loss due to buffer overflow
         // DO NOT put tracing on this thread except at very high tracelevels!
 
@@ -2144,7 +2151,7 @@ public:
                     processMessage(mb, header, slaQueue, slaWorkers);
                 else
 #endif
-				DBGLOG("RoxieSocketQueueManager:run -> receive a packet for %u", header.activityId);
+				DBGLOG("RoxieSocketQueueManager:run -> receive a packet from %u for %u", header.serverIdx, header.activityId);
                 if (header.activityId & ROXIE_HIGH_PRIORITY)
                     processMessage(mb, header, hiQueue, hiWorkers);
                 else

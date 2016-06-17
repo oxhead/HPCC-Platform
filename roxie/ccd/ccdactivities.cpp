@@ -4305,6 +4305,7 @@ public:
 
     inline IFileIO *getFilePart(unsigned partNo, offset_t &_base) const
     {
+        DBGLOG("CRoxieFetchActivityFactory:getFilePart -> partNo=%u, base=%llu", partNo, _base);
         return fileArray->getFilePart(partNo, _base);
     }
 };
@@ -4390,6 +4391,11 @@ IMessagePacker *CRoxieFetchActivityBase::process()
             pos = getLocalFposOffset(rp);
         else
             pos = rp-base;
+        if (isLocalFpos(rp))
+            DBGLOG("\tisLocalFpos");
+        else
+            DBGLOG("\tnot localFpos");
+                
 
         unsigned thisSize = doFetch(rowBuilder, pos, rp, inputData);
         inputData += rhsSize;
@@ -4438,7 +4444,7 @@ public:
 
     virtual size32_t doFetch(ARowBuilder & rowBuilder, offset_t pos, offset_t rawpos, void *inputData)
     {
-		DBGLOG("CRoxieFetchActivity:doFetch -> pos=%u, rawpos=%u", pos, rawpos);
+		DBGLOG("CRoxieFetchActivity:doFetch -> pos=%llu, rawpos=%llu", pos, rawpos);
 		//print_stacktrace();
         RtlDynamicRowBuilder diskRowBuilder(diskAllocator);
         deserializeSource.reset(pos);
@@ -4563,7 +4569,7 @@ public:
 
 void CRoxieFetchActivityBase::setPartNo(bool filechanged)
 {
-	DBGLOG("CRoxieFetchActivityBase::setPartNo");
+	DBGLOG("CRoxieFetchActivityBase::setPartNo -> partNo=%u", lastPartNo.partNo);
     rawFile.setown(variableFileName ? varFiles->getFilePart(lastPartNo.partNo, base) : factory->getFilePart(lastPartNo.partNo, base)); // MORE - superfiles
     assertex(rawFile != NULL);
     rawStream.setown(createFileSerialStream(rawFile, 0, -1, 0));

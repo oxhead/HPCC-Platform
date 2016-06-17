@@ -894,6 +894,7 @@ void CFile::copySection(const RemoteFilename &dest, offset_t toOfs, offset_t fro
 
 void CFile::copyTo(IFile *dest, size32_t buffersize, ICopyFileProgress *progress,bool usetmp,CFflags copyFlags)
 {
+    DBGLOG("CFile::copyTo -> from=%s, to=%s", this->queryFilename(), dest->queryFilename());
     doCopyFile(dest,this,buffersize,progress,NULL,usetmp,copyFlags);
 }
 

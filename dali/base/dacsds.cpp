@@ -1256,6 +1256,7 @@ void CClientRemoteTree::clearCommitChanges(MemoryBuffer *mb)
 
 CClientSDSManager::CClientSDSManager() 
 {
+    DBGLOG("CClientSDSManager::new");
     CDaliVersion serverVersionNeeded("2.1"); // to ensure backward compatibility
     childrenCanBeMissing = queryDaliServerVersion().compare(serverVersionNeeded) >= 0;
     CDaliVersion serverVersionNeeded2("3.4"); // to ensure backward compatibility
@@ -1692,6 +1693,7 @@ void CClientSDSManager::changeMode(CRemoteConnection &connection, unsigned mode,
 #define MIN_MCONNECT_SVER "1.5"
 IRemoteConnections *CClientSDSManager::connect(IMultipleConnector *mConnect, SessionId id, unsigned timeout)
 {
+    DBGLOG("CClientSDSManager::connect");
     CDaliVersion serverVersionNeeded(MIN_MCONNECT_SVER);
     if (queryDaliServerVersion().compare(serverVersionNeeded) < 0)
         throw MakeSDSException(SDSExcpt_VersionMismatch, "Multiple connect not supported by server versions prior to " MIN_MCONNECT_SVER);
@@ -1754,6 +1756,7 @@ IRemoteConnections *CClientSDSManager::connect(IMultipleConnector *mConnect, Ses
 
 IRemoteConnection *CClientSDSManager::connect(const char *xpath, SessionId id, unsigned mode, unsigned timeout)
 {
+    DBGLOG("CClientSDSManager::connect -> xpath=%s, sessionId=%llu, mode=%u, timeout=%u", xpath, id, mode, timeout);
     if (0 == id || id != myProcessSession())
         throw MakeSDSException(SDSExcpt_InvalidSessionId, ", connecting to %s, sessionid=%" I64F "x", xpath, id);
 
@@ -1933,6 +1936,7 @@ StringBuffer &CClientSDSManager::getExternalReport(StringBuffer &out)
 
 IPropertyTree &CClientSDSManager::queryProperties() const
 {
+    DBGLOG("CClientSDSManager::queryProperties");
     if (properties) return *properties;
     CDaliVersion serverVersionNeeded("3.1");
     if (queryDaliServerVersion().compare(serverVersionNeeded) < 0)
@@ -2227,18 +2231,24 @@ bool CClientSDSManager::updateEnvironment(IPropertyTree *newEnv, bool forceGroup
 
 ISDSManager &querySDS()
 {
+    DBGLOG("dali:querySDS");
     CriticalBlock block(SDScrit);
     if (SDSManager)
         return *SDSManager;
     else if (!queryCoven().inCoven())
     {
+        DBGLOG("\tnot coven");
         if (!SDSManager)
+        {
+            DBGLOG("\tinitialize a CClientSDSManager");
             SDSManager = new CClientSDSManager();
+        }
 
         return *SDSManager;
     }
     else
     {
+        DBGLOG("\tnot initialized");
         SDSManager = &querySDSServer();
         return *SDSManager;
     }

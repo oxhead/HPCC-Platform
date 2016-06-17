@@ -536,7 +536,7 @@ public:
 
     virtual IDistributedFile *resolveLFN(const char *logicalName, bool cacheIt, bool writeAccess)
     {
-		DBGLOG("dali:CRoxieDaliHelper::resolveLFN -> logicalName=%s, cacheIt=%u", logicalName, cacheIt);
+		DBGLOG("CRoxieDaliHelper::resolveLFN -> logicalName=%s, cacheIt=%u", logicalName, cacheIt);
         if (isConnected)
         {
             unsigned start = msTick();
@@ -561,7 +561,7 @@ public:
 
     virtual IFileDescriptor *resolveCachedLFN(const char *logicalName)
     {
-		DBGLOG("dali:CRoxieDaliHelper::resolveCachedLFN -> logicalName=%s", logicalName);
+		DBGLOG("CRoxieDaliHelper::resolveCachedLFN -> logicalName=%s", logicalName);
         StringBuffer xpath("Files/F.");
         normalizeName(logicalName, xpath);
         Owned<IPropertyTree> pt = readCache(xpath.str());
@@ -649,6 +649,7 @@ public:
 
     static IRoxieDaliHelper *connectToDali(unsigned waitToConnect)
     {
+		DBGLOG("dali:CRoxieDaliHelper::connectToDali");
         CriticalBlock b(daliHelperCrit);
         LINK(daliHelper);
         if (!daliHelper || !daliHelper->isAlive())

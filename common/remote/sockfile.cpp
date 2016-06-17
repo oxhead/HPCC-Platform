@@ -2383,6 +2383,7 @@ IFileIO * CRemoteFile::openShared(IFOmode mode,IFSHmode shmode,IFEflags extraFla
 
 IFileIO * CRemoteFile::open(IFOmode mode,IFEflags extraFlags)
 {
+    DBGLOG("CRemoteFile::open -> filename=%s", this->queryFilename());
     return openShared(mode,(IFSHmode)(flags&(IFSHread|IFSHfull)),extraFlags);
 }
 

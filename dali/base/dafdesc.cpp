@@ -1346,6 +1346,7 @@ public:
 
     CFileDescriptor(IPropertyTree *tree, INamedGroupStore *resolver, unsigned flags)
     {
+        DBGLOG("CFileDescriptor::new");
         pending = NULL;
         if ((flags&IFDSF_ATTR_ONLY)||!tree) {
             if (!tree)
@@ -1369,13 +1370,16 @@ public:
         getClusterInfo(pt,resolver,flags,clusters);
         offset_t totalsize = (offset_t)-1;
         if (flags&IFDSF_EXCLUDE_PARTS) {
+            DBGLOG("\tIFDSF_EXCLUDE_PARTS");
             for (unsigned i2=0;i2<np;i2++)
                 parts.append(new CPartDescriptor(*this,i2,NULL));
         }
         else {
+            DBGLOG("\tno IFDSF_EXCLUDE_PARTS");
             if (!at||(at->getPropInt64("@size",-1)==-1))
                 totalsize = 0;
             if ((piter.get()&&mb.length())||pt.getPropBin("Parts",mb)) {
+                DBGLOG("\tcase 1");
                 if (!piter.get())
                     piter.setown(deserializePartAttrIterator(mb));
                 unsigned i2=0;
@@ -1387,10 +1391,15 @@ public:
                         else
                             totalsize = (offset_t)-1;
                     }
+                    DBGLOG("idx=%u", i2);
+                    StringBuffer sb;
+                    toXML(&piter->query(), sb);
+                    DBGLOG("%s", sb.str());
                     parts.append(new CPartDescriptor(*this,i2++,&piter->query()));
                 }
             }
             else {  // parts may not be in order
+                DBGLOG("\tcase 2");
                 IArrayOf<IPropertyTree> trees;
                 if (!piter.get())
                     piter.setown(pt.getElements("Part"));
@@ -1415,6 +1424,10 @@ public:
                         else
                             totalsize = (offset_t)-1;
                     }
+                    DBGLOG("idx=%u", i2);
+                    StringBuffer sb;
+                    toXML(&piter->query(), sb);
+                    DBGLOG("%s", sb.str());
                     parts.append(new CPartDescriptor(*this,i2,(i2<trees.ordinality())?&trees.item(i2):NULL));
                 }
             }
@@ -2574,6 +2587,7 @@ inline const char *skipRoot(const char *lname)
 
 StringBuffer &makePhysicalPartName(const char *lname, unsigned partno, unsigned partmax, StringBuffer &result, unsigned replicateLevel, DFD_OS os,const char *diroverride)
 {
+	DBGLOG("makePhysicalPartName -> lname=%s, partno=%u, partmax=%u, replicatoinlevel=%u", lname, partno, partmax, replicateLevel);
     assertex(lname);
     if (strstr(lname,"::>")) { // probably query
         CDfsLogicalFileName lfn;

@@ -6645,6 +6645,7 @@ IRemoteConnections *CCovenSDSManager::connect(IMultipleConnector *mConnect, Sess
 
 IRemoteConnection *CCovenSDSManager::connect(const char *xpath, SessionId id, unsigned mode, unsigned timeout)
 {
+    DBGLOG("CCovenSDSManager::connect -> xpath=%s, sessionId=%llu, mode=%u, timeout=%u", xpath, id, mode, timeout);
     Owned<CLCLockBlock> lockBlock;
     Owned<LinkingCriticalBlock> connectCritBlock;
     if (!RTM_MODE(mode, RTM_INTERNAL))
@@ -7468,6 +7469,7 @@ void CCovenSDSManager::lock(CServerRemoteTree &tree, const char *xpath, Connecti
 
 void CCovenSDSManager::createConnection(SessionId sessionId, unsigned mode, unsigned timeout, const char *xpath, CServerRemoteTree *&tree, ConnectionId &connectionId, bool primary, Owned<LinkingCriticalBlock> &connectCritBlock)
 {
+    DBGLOG("CCovenSDSManager::createConnection -> sessionId=%llu, xpath=%s", sessionId, xpath);
     CRemoteTreeBase *_tree;
     Linked<CRemoteTreeBase> linkedTree;
     Owned<CServerConnection> connection;

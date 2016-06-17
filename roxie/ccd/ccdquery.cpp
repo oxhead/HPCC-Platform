@@ -1704,7 +1704,7 @@ class CSlaveQueryFactory : public CQueryFactory
     void loadSlaveNode(IPropertyTree &node, unsigned subgraphId, ActivityArray *activities)
     {
 		DBGLOG("query:CSlaveQueryFactory::loadSlaveNode -> subgraphId=%u", subgraphId);
-		print_stacktrace();
+		//print_stacktrace();
 		ThorActivityKind kind = getActivityKind(node);
 		DBGLOG("query:CSlaveQueryFactory::loadSlaveNode -> kind=%u", kind);
         switch (kind)
