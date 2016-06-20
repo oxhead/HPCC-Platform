@@ -817,7 +817,7 @@ public:
                     StringBuffer xx; 
                     l.CTXLOG("discarded %s", header.toString(xx).str());
 #endif
-					print_stacktrace();
+					//print_stacktrace();
                     // Already done in doIBYTI()...queue.remove() !!!!! atomic_inc(&ibytiPacketsWorked);
                     waiting.set(i, NULL);
                     queued->Release();
@@ -1126,24 +1126,42 @@ public:
                     }
                 }
             }
+
             if (abortJob) 
             {
                 CriticalBlock b(actCrit);
                 busy = false;  // Keep order - before setActivity below
-                if (logctx.queryTraceLevel() > 5)
+                if (logctx.queryTraceLevel() > 0)
+                //if (logctx.queryTraceLevel() > 5)
                 {
                     StringBuffer x;
                     logctx.CTXLOG("Stop before processing - activity aborted %s", header.toString(x).str());
                 }
                 return;
             }
+            
+            // guess this affects performance a lot
+            Owned <ISlaveActivityFactory> factory = queryFactory->getSlaveActivityFactory(activityId);
+            assertex(factory);
+            IRoxieSlaveActivity *currentActivity = factory->createActivity(logctx, packet);
+            if (!currentActivity->hasLocalData())
+            {
+                DBGLOG("@ no local data");
+                CriticalBlock b(actCrit);
+                busy = false;
+                DBGLOG("yeild to other slave nodes");
+                return;
+            }
+            else
+            {
+                DBGLOG("@ has local data");
+            }
+            
             if (!debugging)
                 ROQ->sendIbyti(header, logctx);
             atomic_inc(&activitiesStarted);
-            Owned <ISlaveActivityFactory> factory = queryFactory->getSlaveActivityFactory(activityId);
-            assertex(factory);
-            //IRoxieSlaveActivity *currentActivity = factory->createActivity(logctx, packet);
-            setActivity(factory->createActivity(logctx, packet));
+
+            setActivity(currentActivity);
 #ifdef TEST_SLAVE_FAILURE
             bool skip = false;
             if (testSlaveFailure) 
@@ -1897,6 +1915,7 @@ public:
 
     virtual IMessagePacker *createOutputStream(RoxiePacketHeader &header, bool outOfBand, const IRoxieContextLogger &logctx)
     {
+        DBGLOG("RoxieSocketQueueManager::createOutputStream");
         unsigned qnum = outOfBand ? 0 : ((header.retries & ROXIE_FASTLANE) || !fastLaneQueue) ? 1 : 2;
         if (logctx.queryTraceLevel() > 8)
         {
@@ -2613,6 +2632,7 @@ public:
 
     virtual IMessagePacker *createOutputStream(RoxiePacketHeader &header, bool outOfBand, const IRoxieContextLogger &logctx)
     {
+        DBGLOG("RoxieLocalQueueManager::createOutputStream");
         return new LocalMessagePacker(header, outOfBand, receiveManager);
     }
 

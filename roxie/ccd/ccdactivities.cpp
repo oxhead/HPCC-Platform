@@ -330,6 +330,7 @@ protected:
 
     virtual void onCreate()
     {
+        DBGLOG("CRoxieSlaveActivity::onCreate");
         queryContext.setown(basefactory->createSlaveContext(logctx, packet));
 #ifdef _DEBUG
         // MORE - need to consider debugging....
@@ -351,6 +352,7 @@ protected:
         deserializeExtra(serializedCreate);
         if (variableFileName) // note - in keyed join with dependent index case, kj itself won't have variableFileName but indexread might
         {
+            DBGLOG("\tis variableFileName");
             CDateTime cacheDate(serializedCreate);
             unsigned checksum;
             serializedCreate.read(checksum);
@@ -395,6 +397,11 @@ public:
     virtual void setVariableFileInfo() = 0;
     virtual IIndexReadActivityInfo *queryIndexReadActivity() { throwUnexpected(); } // should only be called for index activity
 
+    virtual bool hasLocalData()
+    {
+        return true;
+    }
+    
     virtual unsigned queryId()
     {
         return basefactory->queryId();
@@ -847,7 +854,7 @@ public:
         numParallel(_numParallel),
         forceUnkeyed(_forceUnkeyed)
     {
-		DBGLOG("graph:CRoxieDiskReadBaseActivity -> new");
+		DBGLOG("CRoxieDiskReadBaseActivity::new -> parallelPartNo=%u, numParallel=%u", parallelPartNo, numParallel);
         helper = (IHThorDiskReadBaseArg *) basehelper;
         variableFileName = allFilesDynamic || basefactory->queryQueryFactory().isDynamic() || ((helper->getFlags() & (TDXvarfilename|TDXdynamicfilename)) != 0);
         isOpt = (helper->getFlags() & TDRoptional) != 0;
@@ -857,17 +864,22 @@ public:
         isKeyed = false;
         if (resent)
         {
+            DBGLOG("\tis resent request");
             bool usedKey;
             resentInfo.read(processed);
             resentInfo.read(usedKey);
             if (usedKey)
             {
+                DBGLOG("\tused key");
                 cursor.setown(manager->createCursor());
                 cursor->deserializeCursorPos(resentInfo);
                 isKeyed = true;
             }
             else
+            {
+                DBGLOG("\tdoes not use key");
                 resentInfo.read(readPos);
+            }
             assertex(resentInfo.remaining() == 0);
         }
     }
@@ -882,7 +894,7 @@ public:
 
     virtual const char *queryDynamicFileName() const
     {
-		DBGLOG("graph:queryDynamicFileName -> filename=%s", helper->getFileName());
+		DBGLOG("CRoxieDiskReadBaseActivity::queryDynamicFileName -> filename=%s", helper->getFileName());
         return helper->getFileName();
     }
 
@@ -890,7 +902,7 @@ public:
     {
 
         unsigned channel = packet->queryHeader().channel;
-		DBGLOG("graph:setVariableFileInfo -> channel=%s", channel);
+		DBGLOG("CRoxieDiskReadBaseActivity::setVariableFileInfo -> channel=%u", channel);
         varFiles.setown(varFileInfo->getIFileIOArray(isOpt, channel)); // MORE could combine 
         manager.setown(varFileInfo->getIndexManager(isOpt, channel, varFiles, diskSize, false, 0));
     }
@@ -946,6 +958,12 @@ public:
             processor->abort();
     }
 
+    virtual bool hasLocalData()
+    {
+        DBGLOG("CRoxieDiskReadBaseActivity::hasLocalData");
+        return manager->hasLocalData(readPos, parallelPartNo, numParallel);
+    }
+    
     virtual IMessagePacker *process()
     {
         MTIME_SECTION(queryActiveTimer(), "CRoxieDiskReadBaseActivity::process");
@@ -989,9 +1007,10 @@ public:
     CRoxieDiskBaseActivityFactory(IPropertyTree &_graphNode, unsigned _subgraphId, IQueryFactory &_queryFactory, HelperFactory *_helperFactory)
         : CSlaveActivityFactory(_graphNode, _subgraphId, _queryFactory, _helperFactory)
     {
-		DBGLOG("graph:CRoxieDiskBaseActivityFactory -> new");
+		DBGLOG("CRoxieDiskBaseActivityFactory::new");
         Owned<IHThorDiskReadBaseArg> helper = (IHThorDiskReadBaseArg *) helperFactory();
         bool variableFileName = allFilesDynamic || queryFactory.isDynamic() || ((helper->getFlags() & (TDXvarfilename|TDXdynamicfilename)) != 0);
+        DBGLOG("\tvariableFileName=%u", variableFileName);
         if (!variableFileName)
         {
             bool isOpt = (helper->getFlags() & TDRoptional) != 0;
@@ -1045,7 +1064,7 @@ public:
         IInMemoryIndexManager *_manager)
         : CRoxieDiskReadBaseActivity(_logctx, _packet, _hFactory, _aFactory, _manager, 0, 1, false)
     {
-		DBGLOG("graph:CRoxieDiskReadActivity -> new");
+		DBGLOG("CRoxieDiskReadActivity -> new");
         onCreate();
         helper = (IHThorDiskReadArg *) basehelper;
     }
@@ -1057,6 +1076,7 @@ public:
 
     virtual void doProcess(IMessagePacker * output)
     {
+        DBGLOG("CRoxieDiskReadActivity::doProcess -> isKeyed=%u", isKeyed);
         {
             CriticalBlock p(pcrit);
             processor.setown(isKeyed ? createKeyedRecordProcessor(cursor, *this, resent) : 
@@ -1359,6 +1379,7 @@ public:
 
 IInMemoryFileProcessor *createKeyedRecordProcessor(IInMemoryIndexCursor *cursor, CRoxieDiskReadActivity &owner, bool resent)
 {
+    DBGLOG("ccdactivity:createKeyedRecordProcessor");
     return new KeyedRecordProcessor(cursor, owner, resent);
 }
 
@@ -1376,6 +1397,7 @@ public:
     UnkeyedRecordProcessor(IInMemoryIndexCursor *_cursor, CRoxieDiskReadActivity &_owner, IDirectReader *_reader)
         : ReadRecordProcessor(_cursor, _owner), reader(_reader)
     {
+        DBGLOG("UnkeyedRecordProcessor::new");
     }
 
     virtual void doQuery(IMessagePacker *output, unsigned processed, unsigned __int64 rowLimit, unsigned __int64 stopAfter)
@@ -1439,6 +1461,7 @@ public:
     UnkeyedVariableRecordProcessor(IInMemoryIndexCursor *_cursor, CRoxieDiskReadActivity &_owner, IDirectReader *_reader)
       : UnkeyedRecordProcessor(_cursor, _owner, _reader), deserializeSource(_reader)
     {
+        DBGLOG("UnkeyedVariableRecordProcessor::new");
         prefetcher.setown(owner.diskSize.queryOriginal()->createDiskPrefetcher(owner.queryContext->queryCodeContext(), owner.basefactory->queryId()));
     }
 
@@ -1493,6 +1516,7 @@ protected:
 
 IInMemoryFileProcessor *createUnkeyedRecordProcessor(IInMemoryIndexCursor *cursor, CRoxieDiskReadActivity &owner, bool variableDisk, IDirectReader *_reader)
 {
+    DBGLOG("ccdactivity:createUnkeyedRecordProcessor");
     if (variableDisk)
         return new UnkeyedVariableRecordProcessor(cursor, owner, _reader);
     else
@@ -4286,6 +4310,7 @@ public:
         IHThorFetchContext * fetchContext = static_cast<IHThorFetchContext *>(helper->selectInterface(TAIfetchcontext_1));
 		DBGLOG("CRoxieFetchActivityFactory -> new => fname=%s", fetchContext->getFileName());
 		bool variableFileName = allFilesDynamic || queryFactory.isDynamic() || ((fetchContext->getFetchFlags() & (FFvarfilename|FFdynamicfilename)) != 0);
+        DBGLOG("\tvariableFileName=%u", variableFileName);
         if (!variableFileName)
         {
             bool isOpt = (fetchContext->getFetchFlags() & FFdatafileoptional) != 0;
@@ -4331,7 +4356,7 @@ public:
     CRoxieFetchActivityBase(SlaveContextLogger &_logctx, IRoxieQueryPacket *_packet, HelperFactory *_hFactory, const CRoxieFetchActivityFactory *_aFactory)
         : CRoxieSlaveActivity(_logctx, _packet, _hFactory, _aFactory), factory(_aFactory)
     {
-		DBGLOG("ac:CRoxieFetchActivityBase -> new");
+		DBGLOG("CRoxieFetchActivityBase -> new");
         helper = (IHThorFetchBaseArg *) basehelper;
         fetchContext = static_cast<IHThorFetchContext *>(helper->selectInterface(TAIfetchcontext_1));
         base = 0;
@@ -4341,6 +4366,32 @@ public:
         inputData = (char *) serializedCreate.readDirect(0);
         inputLimit = inputData + (serializedCreate.length() - serializedCreate.getPos());
         needsRHS = helper->transformNeedsRhs();
+    }
+    
+    virtual bool hasLocalData()
+    {
+        DBGLOG("CRoxieFetchActivityBase::hasLocalData");
+        PartNoType partNoType = *(PartNoType *) inputData;
+        DBGLOG("\tpartNo=%u, fileNo=%u", partNoType.partNo, partNoType.fileNo);
+        unsigned partNo = partNoType.partNo;
+        
+        Owned<const IResolvedFile> rFile = variableFileName ? varFileInfo : factory->datafile;
+        if (rFile != NULL)
+        {
+            DBGLOG("\tqueryFileName=%s", rFile->queryFileName());
+            DBGLOG("\tqueryPhysicalName=%s", rFile->queryPhysicalName());
+            DBGLOG("\tpartFilename=%s", rFile->getIFileIOArray(false, 1)->queryLogicalFilename(partNo));
+            OwnedIFile localFile = createIFile(rFile->getIFileIOArray(false, 1)->queryLogicalFilename(partNo));
+            bool fileExsists = localFile->exists();
+            DBGLOG("\tfile exists=%u", fileExsists);
+            localFile.clear();
+            return fileExsists;
+        }
+        else
+        {
+            DBGLOG("\tempty IResolvedFile");
+        }
+        return true;
     }
 
     virtual const char *queryDynamicFileName() const
@@ -4569,7 +4620,7 @@ public:
 
 void CRoxieFetchActivityBase::setPartNo(bool filechanged)
 {
-	DBGLOG("CRoxieFetchActivityBase::setPartNo -> partNo=%u", lastPartNo.partNo);
+	DBGLOG("CRoxieFetchActivityBase::setPartNo -> partNo=%u, variableFileName=%u", lastPartNo.partNo, variableFileName);
     rawFile.setown(variableFileName ? varFiles->getFilePart(lastPartNo.partNo, base) : factory->getFilePart(lastPartNo.partNo, base)); // MORE - superfiles
     assertex(rawFile != NULL);
     rawStream.setown(createFileSerialStream(rawFile, 0, -1, 0));

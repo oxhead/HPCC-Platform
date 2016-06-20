@@ -3895,7 +3895,7 @@ public:
 //private:   //vc6 doesn't like this being private yet accessed by nested class...
     const void *getRow(IMessageUnpackCursor *mu) 
     {
-		DBGLOG("CRemoteResultAdaptor:getRow");
+		//DBGLOG("CRemoteResultAdaptor:getRow");
         if (!mu->isSerialized() || (meta.isFixedSize() && !deserializer))
             return mu->getNext(meta.getFixedSize());
         else
@@ -21275,7 +21275,7 @@ public:
 
     virtual void start(unsigned parentExtractSize, const byte *parentExtract, bool paused)
     {
-		DBGLOG("graph:CRoxieServerDiskReadBaseActivity::start");
+		DBGLOG("CRoxieServerDiskReadBaseActivity::start");
         CRoxieServerActivity::start(parentExtractSize, parentExtract, paused);
         if (compoundHelper)
         {
@@ -24373,7 +24373,7 @@ public:
             OwnedRoxieString fname(fetchContext->getFileName());
 			DBGLOG("@ fname=%s", fname.get());
             varFileInfo.setown(resolveLFN(fname, isOpt));
-			DBGLOG("@ numParts=%u, fileSize=%u, physicalName=%s, fileName=%s, exists=%u, isKey=%u", varFileInfo->getNumParts(), varFileInfo->getFileSize(), varFileInfo->queryPhysicalName(), varFileInfo->queryFileName(), varFileInfo->exists(), varFileInfo->isKey());
+			DBGLOG("@ numParts=%u, fileSize=%llu, physicalName=%s, fileName=%s, exists=%u, isKey=%u", varFileInfo->getNumParts(), varFileInfo->getFileSize(), varFileInfo->queryPhysicalName(), varFileInfo->queryFileName(), varFileInfo->exists(), varFileInfo->isKey());
             if (varFileInfo)
                 map.setown(varFileInfo->getFileMap());
         }
@@ -24421,7 +24421,7 @@ public:
             partNo = getLocalFposPart(rp) + 1;
         else
             partNo = map->mapOffset(rp);
-		DBGLOG("CRoxieServerFetchActivity::processRow -> partNo=%u, offset=%u", partNo, rp);
+		DBGLOG("CRoxieServerFetchActivity::processRow -> partNo=%u, offset=%llu", partNo, rp);
         if (needsRHS)
         {
             Owned<IEngineRowAllocator> extractAllocator = ctx->queryCodeContext()->getRowAllocator(helper.queryExtractedSize(), activityId);
@@ -26626,7 +26626,7 @@ public:
     void setResult(unsigned id, IGraphResult * result)
     {
 		DBGLOG("CGraphResults::setResult -> id=%u", id);
-		print_stacktrace();
+		//print_stacktrace();
         CriticalBlock procedure(cs);
 
         if (results.ordinality() <= id)
@@ -27123,8 +27123,8 @@ public:
     }
     virtual void setResult(unsigned id, IGraphResult * result)
     {
-		DBGLOG("CActivityGraph::setResult -> id=%u", id);
-		print_stacktrace();
+		//DBGLOG("CActivityGraph::setResult -> id=%u", id);
+		//print_stacktrace();
 		results->setResult(id, result);
     }
     virtual IEngineRowStream * createResultIterator(unsigned id)

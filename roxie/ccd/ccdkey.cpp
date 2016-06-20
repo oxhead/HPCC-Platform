@@ -559,6 +559,7 @@ public:
     InMemoryDirectReader(offset_t _readPos, const char *_start, memsize_t _memsize, PtrToOffsetMapper &_baseMap, unsigned _partNo, unsigned _numParts)
         : baseMap(_baseMap)
     {
+        DBGLOG("InMemoryDirectReader::new");
         if (_numParts == 1)
         {
             memsize = _memsize;
@@ -688,6 +689,7 @@ public:
 
     BufferedDirectReader(offset_t _startPos, IFileIOArray *_f, unsigned _partNo, unsigned _numParts) : f(_f)
     {
+        DBGLOG("BufferedDirectReader::new");
         thisFileStartPos = 0;
         completedStreamsSize = 0;
 
@@ -699,6 +701,7 @@ public:
         // For now until get round to doing better, we give all the work to the first slot...
         while (!_partNo && !thisPart && ++thisPartIdx < maxParts) // MORE
         {
+            DBGLOG("\tcurrent partIndex=%u, fileStartPos=%llu", thisPartIdx, thisFileStartPos);
             thisPart.setown(f->getFilePart(thisPartIdx, thisFileStartPos));
             if (thisPart && _startPos >= thisPart->size())
             {
@@ -709,11 +712,16 @@ public:
         }
 
         if (thisPart)
-        {       
+        {
+            DBGLOG("\tswitch to next partition -> partIdx=%u, partFile=%s", thisPartIdx, f->queryLogicalFilename(thisPartIdx));
+            OwnedIFile localFile = createIFile(f->queryLogicalFilename(thisPartIdx));
+            bool fileExsists = localFile->exists();
+            DBGLOG("\tfile exists=%u", fileExsists);
             curStream.setown(createFileSerialStream(thisPart, _startPos));
         }
         else
         {
+            DBGLOG("\tthe next partition is not loaded -> partIdx=%u", thisPartIdx);
             // No files for this particular reader to do
             thisPartIdx = maxParts;
         }
@@ -721,6 +729,7 @@ public:
 
     void nextFile()
     {
+        DBGLOG("BufferedDirectReader::nextFile");
         completedStreamsSize += thisPart->size();
         unsigned maxParts = f->length();
         thisPart.clear();
@@ -729,9 +738,20 @@ public:
         {
             thisPart.setown(f->getFilePart(thisPartIdx, thisFileStartPos ));
         }
+        DBGLOG("\tcurrent idxPart=%u, fileStartPos=%llu", thisPartIdx, thisFileStartPos);
         if (thisPart)
         {
+            DBGLOG("\tswitch to next partition -> partIdx=%u, partFile=%s", thisPartIdx, f->queryLogicalFilename(thisPartIdx));
+            OwnedIFile localFile = createIFile(f->queryLogicalFilename(thisPartIdx));
+            bool fileExsists = localFile->exists();
+            DBGLOG("\tfile exists=%u", fileExsists);
+            localFile.clear();
+            
             curStream.setown(createFileSerialStream(thisPart));
+        }
+        else
+        {
+            DBGLOG("\tthe next partition is not loaded -> partIdx=%u", thisPartIdx);
         }
     }
 
@@ -1171,9 +1191,49 @@ public:
         }
         return false;
     }
+    
+    bool hasLocalData(offset_t readPos, unsigned partNo, unsigned numParts)
+    {
+        DBGLOG("InMemoryIndexManager::hasLocalData -> readPos=%llu, partNo=%u, numParts=%u", readPos, partNo, numParts);
+        offset_t thisFileStartPos = 0;
+        offset_t completedStreamsSize = 0;
+        
+        Owned<IFileIO> thisPart;
+        unsigned thisPartIdx = 0;
+        unsigned maxParts = files ? files->length() : 0;
+        const char *partFileName;
+        
+        // copied from BufferedDirectReader
+        while (!partNo && !thisPart && ++thisPartIdx < maxParts) // MORE
+        {
+            DBGLOG("\tcurrent partIndex=%u, fileStartPos=%llu", thisPartIdx, thisFileStartPos);
+            thisPart.setown(files->getFilePart(thisPartIdx, thisFileStartPos));
+            partFileName = files->queryLogicalFilename(thisPartIdx);
+            if (thisPart && readPos >= thisPart->size())
+            {
+                readPos -= thisPart->size();
+                completedStreamsSize += thisPart->size();
+                thisPart.clear();
+            }
+        }
+        if (thisPart && partFileName)
+        {
+            OwnedIFile localFile = createIFile(partFileName);
+            bool fileExsists = localFile->exists();
+            DBGLOG("\tpartFileName=%s, exists=%u", partFileName, fileExsists);
+            localFile.clear();
+            return fileExsists;
+            
+        }
+        DBGLOG("\tthe part=%u does not exist", thisPartIdx);
+        return false;
+    }
+    
+
 
     virtual IDirectReader *createReader(offset_t readPos, unsigned partNo, unsigned numParts)
     {
+        DBGLOG("InMemoryIndexManager::createReader -> readPos=%llu, partNo=%u, numParts=%u", readPos, partNo, numParts);
         if (loadedIntoMemory)
             return new InMemoryDirectReader(readPos, fileStart, fileEnd-fileStart, baseMap, partNo, numParts);
         else
@@ -1189,6 +1249,7 @@ public:
 
     virtual void load(IFileIOArray *_files, IRecordSize *recordSize, bool preload, int _numKeys)
     {
+        DBGLOG("InMemoryIndexManager::load");
         // MORE - if numKeys is greater than previously then we may need to take action here....
         CriticalBlock b(loadCrit);
         if (!loaded)
@@ -1206,6 +1267,7 @@ public:
                 {
                     if (files->isValid(idx))
                     {
+                        DBGLOG("\tidx=%u, valied=true, filename=%s", idx, files->queryLogicalFilename(idx));
                         offset_t base;
                         Owned<IFileIO> file = files->getFilePart(idx, base);
                         offset_t size = file->size();
@@ -1214,12 +1276,17 @@ public:
                             DBGLOG("File fragment %d size %" I64F "d", idx, size);
                         totalSize += size; // MORE - check for overflow here
                     }
+                    else
+                    {
+                        DBGLOG("\tidx=%u, valied=false, filename=%s", idx, files->queryLogicalFilename(idx));
+                    }
                 }
             }
             loaded = true;
         }
         if (preload && !loadedIntoMemory) // loaded but NOT originally seen as preload, lets try to generate keys...
         {
+            DBGLOG("\tnot really loaded into memory");
             if ((size_t)totalSize != totalSize)
             {
                 IException *E = makeStringException(ROXIE_MEMORY_ERROR, "Preload file is larger than maximum object size");
@@ -1992,6 +2059,7 @@ bool InMemoryIndexManager::selectKey(InMemoryIndexCursor *cursor)
 
 extern IInMemoryIndexManager *createInMemoryIndexManager(bool isOpt, const char *fileName)
 {
+    DBGLOG("ccdactivity:createInMemoryIndexManager -> filename=%s", fileName);
     return new InMemoryIndexManager(isOpt, fileName);
 }
 
