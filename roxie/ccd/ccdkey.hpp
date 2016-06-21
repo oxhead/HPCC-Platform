@@ -50,7 +50,7 @@ interface IInMemoryIndexManager : extends IInterface
     virtual IDirectReader *createReader(offset_t readPos, unsigned partNo, unsigned numParts) = 0;
     virtual void getTrackedInfo(const char *id, StringBuffer &xml) = 0;
     virtual void setKeyInfo(IPropertyTree &indexInfo) = 0;
-    virtual bool hasLocalData(offset_t readPos, unsigned partNo, unsigned numParts) = 0;
+    virtual unsigned getTargetPartIndex(offset_t readPos, unsigned partNo, unsigned numParts) = 0;
 };
 
 extern IInMemoryIndexManager *createInMemoryIndexManager(bool isOpt, const char *fileName);

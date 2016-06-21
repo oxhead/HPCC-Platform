@@ -961,7 +961,41 @@ public:
     virtual bool hasLocalData()
     {
         DBGLOG("CRoxieDiskReadBaseActivity::hasLocalData");
-        return manager->hasLocalData(readPos, parallelPartNo, numParallel);
+        unsigned partNo = manager->getTargetPartIndex(readPos, parallelPartNo, numParallel);
+        unsigned channel = packet->queryHeader().channel;
+        DBGLOG("\tpartNo=%u", partNo);
+        DBGLOG("\tchannel=%u", channel);
+        
+        const IResolvedFile *rFile = variableFileName ? varFileInfo : basefactory->datafile;
+        if (rFile)
+        {
+            IResolvedFile *file = const_cast<IResolvedFile*>(rFile);
+
+            offset_t base;
+            IFileIO *partFileIO = file->getIFileIOArray(false, channel)->getFilePart(partNo, base);
+            ILazyFileIO *partLazyFileIO = QUERYINTERFACE(partFileIO, ILazyFileIO);
+            DBGLOG("\tpartition file=%s", partLazyFileIO->queryFilename());
+            DBGLOG("\tpartition source=%s", partLazyFileIO->querySource()->queryFilename());
+            if (partLazyFileIO->isRemote())
+            {
+                Owned<IFile> partFile = createIFile(partLazyFileIO->queryFilename());
+                if (partFile->exists())
+                {
+                    DBGLOG("\tthe requested partition requires to load");
+                    file->reloadIFileIOArray(channel, partNo);
+                }
+                else
+                {
+                    DBGLOG("\tthe requested partition does not exist");
+                }
+            }
+            return !partLazyFileIO->isRemote();
+        }
+        else
+        {
+            DBGLOG("\tempty IResolvedFile");
+        }
+        return true;
     }
     
     virtual IMessagePacker *process()
@@ -4372,20 +4406,36 @@ public:
     {
         DBGLOG("CRoxieFetchActivityBase::hasLocalData");
         PartNoType partNoType = *(PartNoType *) inputData;
-        DBGLOG("\tpartNo=%u, fileNo=%u", partNoType.partNo, partNoType.fileNo);
         unsigned partNo = partNoType.partNo;
+        unsigned channel = packet->queryHeader().channel;
+        DBGLOG("\tpartNo=%u, fileNo=%u", partNo, partNoType.fileNo);
+        DBGLOG("\tchannel=%u", channel);
         
-        Owned<const IResolvedFile> rFile = variableFileName ? varFileInfo : factory->datafile;
-        if (rFile != NULL)
+        const IResolvedFile *rFile = variableFileName ? varFileInfo : factory->datafile;
+        if (rFile)
         {
-            DBGLOG("\tqueryFileName=%s", rFile->queryFileName());
-            DBGLOG("\tqueryPhysicalName=%s", rFile->queryPhysicalName());
-            DBGLOG("\tpartFilename=%s", rFile->getIFileIOArray(false, 1)->queryLogicalFilename(partNo));
-            OwnedIFile localFile = createIFile(rFile->getIFileIOArray(false, 1)->queryLogicalFilename(partNo));
-            bool fileExsists = localFile->exists();
-            DBGLOG("\tfile exists=%u", fileExsists);
-            localFile.clear();
-            return fileExsists;
+            IResolvedFile *file = const_cast<IResolvedFile*>(rFile);
+            
+            offset_t base;
+            IFileIO *partFileIO = file->getIFileIOArray(false, channel)->getFilePart(partNo, base);
+            ILazyFileIO *partLazyFileIO = QUERYINTERFACE(partFileIO, ILazyFileIO);
+            DBGLOG("\tpartition file=%s", partLazyFileIO->queryFilename());
+            DBGLOG("\tpartition source=%s", partLazyFileIO->querySource()->queryFilename());
+            if (partLazyFileIO->isRemote())
+            {
+                Owned<IFile> partFile = createIFile(partLazyFileIO->queryFilename());
+                if (partFile->exists())
+                {
+                    DBGLOG("\tthe requested partition requires to load");
+                    file->reloadIFileIOArray(channel, partNo);
+                }
+                else
+                {
+                    DBGLOG("\tthe requested partition does not exist");
+                }
+                partFile.clear();
+            }
+            return !partLazyFileIO->isRemote();
         }
         else
         {

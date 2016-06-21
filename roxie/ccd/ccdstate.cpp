@@ -337,6 +337,59 @@ public:
  * </PackageMaps>
  */
 
+class CGlobalResolvedFileCache : implements IResolvedFileCache
+{
+    CriticalSection cacheLock;
+    CopyMapStringToMyClass<IResolvedFile> files;
+    
+public:
+    // Retrieve number of files in cache
+    inline unsigned count() const
+    {
+        return files.count();
+    }
+    
+    // Add a filename and the corresponding IResolvedFile to the cache
+    virtual void addCache(const char *filename, const IResolvedFile *file)
+    {
+        DBGLOG("CGlobalResolvedFileCache::addCache -> filename=%s", filename);
+        CriticalBlock b(cacheLock);
+        IResolvedFile *add = const_cast<IResolvedFile *>(file);
+        //add->setCache(this);
+        files.setValue(filename, add);
+    }
+    // Remove an IResolvedFile from the cache
+    virtual void removeCache(const IResolvedFile *file)
+    {
+        DBGLOG("CGlobalResolvedFileCache::removeCache -> filename=%s", file->queryFileName());
+        CriticalBlock b(cacheLock);
+        if (traceLevel > 9)
+            DBGLOG("removeCache %s", file->queryFileName());
+        // NOTE: it's theoretically possible for the final release to happen after a replacement has been inserted into hash table.
+        // So only remove from hash table if what we find there matches the item that is being deleted.
+        IResolvedFile *goer = files.getValue(file->queryFileName());
+        if (goer == file)
+            files.remove(file->queryFileName());
+        // You might want to remove files from the daliServer cache too, but it's not safe to do so here as there may be multiple package caches
+    }
+    // Lookup a filename in the cache
+    virtual IResolvedFile *lookupCache(const char *filename)
+    {
+        DBGLOG("CGlobalResolvedFileCache::lookupCache -> filename=%s", filename);
+        CriticalBlock b(cacheLock);
+        IResolvedFile *cache = files.getValue(filename);
+        if (cache)
+        {
+            LINK(cache);
+            if (cache->isAlive())
+                return cache;
+            if (traceLevel)
+                DBGLOG("Not returning %s from cache as isAlive() returned false", filename);
+        }
+        return NULL;
+    }
+};
+
 class CResolvedFileCache : implements IResolvedFileCache
 {
     CriticalSection cacheLock;
@@ -356,6 +409,8 @@ public:
         IResolvedFile *add = const_cast<IResolvedFile *>(file);
         add->setCache(this);
         files.setValue(filename, add);
+        // hack to support elasticity
+        //fileMapping->addCache(filename, add);
     }
     // Remove an IResolvedFile from the cache
     virtual void removeCache(const IResolvedFile *file)
@@ -369,6 +424,8 @@ public:
         if (goer == file)
             files.remove(file->queryFileName());
         // You might want to remove files from the daliServer cache too, but it's not safe to do so here as there may be multiple package caches
+        // hack to support elasticity
+        //fileMapping->removeCache(file);
     }
     // Lookup a filename in the cache
     virtual IResolvedFile *lookupCache(const char *filename)
@@ -3094,6 +3151,17 @@ void mergeQueries(IPropertyTree *dest, IPropertyTree *src)
         }
         mergePTree(destQuery, srcQuery);
     }
+}
+
+/*=======================================================================================================
+ * elasticity support in Roxie
+ *========================================================================================================*/
+
+IResolvedFileCache *fileMapping;
+IResolvedFileCache *createFileMapping()
+{
+    DBGLOG("Initialize the global file mapping");
+    return new CGlobalResolvedFileCache;
 }
 
 #ifdef _USE_CPPUNIT

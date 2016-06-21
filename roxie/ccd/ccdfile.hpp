@@ -41,6 +41,7 @@ interface ILazyFileIO : extends IFileIO
     virtual IFile *queryTarget() = 0;
     virtual void copyComplete() = 0;
     virtual bool createHardFileLink() = 0;
+    virtual bool switchToLocal() = 0;
 
     virtual unsigned getLastAccessed() const = 0;
     virtual bool isOpen() const = 0;
@@ -90,6 +91,8 @@ interface IResolvedFile : extends ISimpleSuperFileEnquiry
 {
     virtual void serializePartial(MemoryBuffer &mb, unsigned channel, bool localInfoOnly) const = 0;
 
+    virtual void reloadAllIFileIOArray(unsigned channel) = 0;
+    virtual void reloadIFileIOArray(unsigned channel, unsigned partNo) = 0;
     virtual IFileIOArray *getIFileIOArray(bool isOpt, unsigned channel) const = 0;
     virtual IKeyArray *getKeyArray(IDefRecordMeta *activityMeta, TranslatorArray *translators, bool isOpt, unsigned channel, bool allowFieldTranslation) const = 0;
     virtual IFilePartMap *getFileMap() const = 0;

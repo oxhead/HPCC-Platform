@@ -1192,7 +1192,7 @@ public:
         return false;
     }
     
-    bool hasLocalData(offset_t readPos, unsigned partNo, unsigned numParts)
+    unsigned getTargetPartIndex(offset_t readPos, unsigned partNo, unsigned numParts)
     {
         DBGLOG("InMemoryIndexManager::hasLocalData -> readPos=%llu, partNo=%u, numParts=%u", readPos, partNo, numParts);
         offset_t thisFileStartPos = 0;
@@ -1216,17 +1216,7 @@ public:
                 thisPart.clear();
             }
         }
-        if (thisPart && partFileName)
-        {
-            OwnedIFile localFile = createIFile(partFileName);
-            bool fileExsists = localFile->exists();
-            DBGLOG("\tpartFileName=%s, exists=%u", partFileName, fileExsists);
-            localFile.clear();
-            return fileExsists;
-            
-        }
-        DBGLOG("\tthe part=%u does not exist", thisPartIdx);
-        return false;
+        return thisPartIdx;
     }
     
 

@@ -402,6 +402,10 @@ interface IRoxieQueryPacket : extends IInterface
 
 interface IQueryDll;
 
+// Related to elasticity support
+interface IResolvedFileCache;
+extern IResolvedFileCache *fileMapping;
+
 // Global configuration info
 extern bool shuttingDown;
 extern unsigned numChannels;

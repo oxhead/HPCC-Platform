@@ -153,4 +153,6 @@ extern void stopDelayedReleaser();
 extern void createDelayedReleaser();
 extern void stopDelayedReleaser();
 
+extern IResolvedFileCache *createFileMapping();
+
 #endif

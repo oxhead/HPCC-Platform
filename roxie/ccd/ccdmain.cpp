@@ -1008,6 +1008,8 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
         if (!localSlave)
             openMulticastSocket();
 
+        // needs to handle the restart case?
+        fileMapping = createFileMapping();
         setDaliServixSocketCaching(true);  // enable daliservix caching
         loadPlugins();
         createDelayedReleaser();

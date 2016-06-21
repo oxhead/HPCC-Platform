@@ -301,6 +301,33 @@ public:
                 queryFileCache().closeExpired(remote); // NOTE - this does not actually do the closing of expired files (which could deadlock, or could close the just opened file if we unlocked crit)
         }
     }
+    
+    virtual bool switchToLocal()
+    {
+        CriticalBlock b(crit);
+        assertex(sources.item(0).exists());
+        IFile *f = &sources.item(0);
+        
+        RoxieFileStatus fileStatus = queryFileCache().fileUpToDate(f, fileSize, fileDate, crc, isCompressed, false);
+        if (fileStatus == FileIsValid)
+        {
+            if (isCompressed)
+                current.setown(createCompressedFileReader(f));
+            else
+                current.setown(f->open(IFOread));
+            if (current)
+            {
+                DBGLOG("Opening %s", f->queryFilename());
+                currentIdx = 0;
+                setRemote(false);
+                disconnectRemoteIoOnExit(current);
+                return true;
+            }
+        }
+        // do we need this?
+        disconnectRemoteFile(f);
+        return false;
+    }
 
     virtual void addSource(IFile *newSource)
     {
@@ -659,18 +686,30 @@ class CRoxieFileCache : public CInterface, implements ICopyFileProgress, impleme
         RoxieFileStatus fileStatus = fileUpToDate(local, size, modified, crc, isCompressed);
         DBGLOG("\tFileNotFound=%u, FileDateMismatch=%u, FileCRCMismatch=%u, FileIsValid=%u, FileNotFound=%u", FileSizeMismatch, FileDateMismatch, FileCRCMismatch, FileIsValid, FileNotFound);
         DBGLOG("\tfileStatus=%u", fileStatus);
+        // hack to support elasticity
+        // _checkOpen will skip this file?
+        bool dataLocal = false;
         if (fileStatus == FileIsValid)
         {
             DBGLOG("\tadd a local location: %s", localLocation);
             ret->addSource(local.getLink());
             ret->setRemote(false);
+            dataLocal = true;
+        }
+        else if (!local->exists())
+        {
+            DBGLOG("\tadd a local locatoin but the file does not exist");
+            ret->addSource(local.getLink());
         }
         else if (local->exists() && !ignoreOrphans)  // Implies local dali and local file out of sync
             throw MakeStringException(ROXIE_FILE_ERROR, "Local file %s does not match DFS information", localLocation);
-        else
+        
+        // add all remote partitions
+        if (true)
         {
             DBGLOG("\tcouldn't find the local location: %s", localLocation);
-            bool addedOne = false;
+            // hack: change from false to true
+            bool addedOne = true;
 
             // put the peerRoxieLocations next in the list
             StringArray localLocations;
@@ -692,7 +731,7 @@ class CRoxieFileCache : public CInterface, implements ICopyFileProgress, impleme
                     if (status==FileIsValid)
                     {
                         DBGLOG("\t\tFileIsValid");
-                        if (miscDebugTraceLevel > 0)
+                        if (true)
                         //if (miscDebugTraceLevel > 5)
                             DBGLOG("adding peer location %s", remoteName);
                         ret->addSource(remote.getClear());
@@ -772,8 +811,9 @@ class CRoxieFileCache : public CInterface, implements ICopyFileProgress, impleme
                     throw MakeStringException(ROXIE_FILE_OPEN_FAIL, "Could not open file %s", localLocation);
                 }
             }
-            ret->setRemote(true);
+            //ret->setRemote(true);
         }
+        ret->setRemote(!dataLocal);
         ret->setCache(this);
         files.setValue(localLocation, (ILazyFileIO *)ret);
         return ret.getClear();
@@ -1639,7 +1679,7 @@ public:
 
     virtual IFileIO *getFilePart(unsigned partNo, offset_t &base)
     {
-        DBGLOG("CFileIOArray::getFilePart -> partNo=%u, base=%llu", partNo, base);
+        DBGLOG("CFileIOArray::getFilePart -> partNo=%u", partNo);
         if (!files.isItem(partNo))
         {
             DBGLOG("getFilePart requested invalid part %d", partNo);
@@ -1670,12 +1710,27 @@ public:
 
     void addFile(IFileIO *f, offset_t base, const char *filename)
     {
-        DBGLOG("CFileIOArray::addFile -> filename=%s", filename);
+        DBGLOG("CFileIOArray::addFile -> base=%llu, filename=%s", base, filename);
         if (f)
+        {
+            DBGLOG("\ta valid FileIO");
             valid++;
+        }
+        else
+        {
+            DBGLOG("\tnot a vlid FileIO");
+        }
         files.append(f);
         bases.append(base);
         filenames.append(filename ? filename : "");  // Hack!
+    }
+    
+    void updateFile(unsigned partNo, IFileIO *f, offset_t base, const char *filename)
+    {
+        DBGLOG("CFileIOArray::updateFile -> partNo=%u, base=%llu, filename=%s", partNo, base, filename);
+        files.replace(f, base);
+        bases.replace(base, base);
+        filenames.replace(filename, base);
     }
 
     virtual unsigned length()
@@ -2016,9 +2071,91 @@ public:
         else
             mb.append(false);
     }
+    
+    virtual void reloadAllIFileIOArray(unsigned channel)
+    {
+        DBGLOG("CResolvedFile::reloadAllIFileIOArray -> channel=%u", channel);
+        IFileIOArray *ioArry = ioArrayMap.get(channel);
+        if (!ioArry)
+        {
+            // should throw exception
+            return;
+        }
+        for ( unsigned partNo = 1; partNo < ioArry->length(); partNo++)
+        {
+            reloadIFileIOArray(channel, partNo);
+        }
+    }
+    
+    virtual void reloadIFileIOArray(unsigned channel, unsigned partNo)
+    {
+        DBGLOG("CResolvedFile::reloadIFileIOArray -> channel=%u, partNo=%u", channel, partNo);
+        CriticalBlock b(lock);
+        CFileIOArray *ioArray = QUERYINTERFACE(ioArrayMap.get(channel), CFileIOArray);
+    
+        offset_t base;
+        IFileIO *fileIO = ioArray->getFilePart(partNo, base);
+        ILazyFileIO *lazyFileIO = QUERYINTERFACE(fileIO, ILazyFileIO);
+        lazyFileIO->switchToLocal();
+        
+        /*
+        // should use fileUpToDate()?
+        OwnedIFile localFile = createIFile(ioArray->queryLogicalFilename(partNo));
+        DBGLOG("\tidx=%u, partFileName=%s", partNo, localFile->queryFilename());
+        if (fileIO)
+        {
+            if (localFile->exists())
+            {
+                DBGLOG("\talready loaded");
+            }
+            else
+            {
+                DBGLOG("\tdata needs to be unloaded");
+                ioArray->updateFile(partNo, NULL, base, localFile->queryFilename());
+            }
+        }
+        else
+        {
+            if (localFile->exists())
+            {
+                DBGLOG("\tfound new partition file to load");
+                // really need the support super file?
+                ForEachItemIn(idx, subFiles)
+                {
+                    DBGLOG("\tidx=%u", idx);
+                    IFileDescriptor *fdesc = subFiles.item(idx);
+                    IFileDescriptor *remoteFDesc = remoteSubFiles.item(idx);
+                    //const char *subname = subNames.item(idx);
+                    if (fdesc)
+                    {
+                        unsigned numParts = fdesc->numParts();
+                        IPartDescriptor *pdesc = fdesc->queryPart(partNo-1);
+                        assertex(pdesc);
+                        DBGLOG("\tlocal part info");
+                        this->print_partition(pdesc);
+                        IPartDescriptor *remotePDesc = queryMatchingRemotePart(pdesc, remoteFDesc, partNo-1);
+                        DBGLOG("\tremote part info");
+                        this->print_partition(remotePDesc);
+                        Owned<ILazyFileIO> file = createPhysicalFile(subNames.item(idx), pdesc, remotePDesc, ROXIE_FILE, numParts, cached != NULL, channel);
+                        DBGLOG("\tlazy filename=%s", file->queryFilename());
+                        //IPropertyTree &partProps = pdesc->queryProperties();
+                        //f->addFile(file.getClear(), partProps.getPropInt64("@offset"), file->queryFilename());
+                        ioArray->updateFile(partNo, file, base, localFile->queryFilename());
+                    }
+                }
+            }
+            else
+            {
+                DBGLOG("\tnothing we need to do");
+            }
+        }
+        localFile.clear();
+         */
+    }
+    
     virtual IFileIOArray *getIFileIOArray(bool isOpt, unsigned channel) const
     {
-        DBGLOG("CResolvedFile:getIFileIOArray");
+        DBGLOG("CResolvedFile::getIFileIOArray");
         CriticalBlock b(lock);
         IFileIOArray *ret = ioArrayMap.get(channel);
         if (!ret)
@@ -2057,12 +2194,17 @@ public:
             IFileDescriptor *fdesc = subFiles.item(idx);
             IFileDescriptor *remoteFDesc = remoteSubFiles.item(idx);
             const char *subname = subNames.item(idx);
+            DBGLOG("\tsubname=%s", subname);
             if (fdesc)
             {
                 unsigned numParts = fdesc->numParts();
                 for (unsigned i = 1; i <= numParts; i++)
                 {
                     DBGLOG("\tpartNo=%u, numParts=%u, channel=%u, bondedChannel=%u", i, numParts, channel, getBondedChannel(i));
+#ifdef ELASTIC_ENABLED
+                    StringBuffer sb;
+                    DBGLOG("\tmapped local part filename=%s", fdesc->queryPart(i-1)->getPath(sb).str());
+#endif
 #ifdef ELASTIC_DATA_DOWNLOAD_ALL
                     if (true)
                     {
@@ -2071,7 +2213,7 @@ public:
                     if (!channel || getBondedChannel(i)==channel)
                     {
 #endif
-                        DBGLOG("\tremote files");
+                        DBGLOG("\tThe partition goes here -> idx=%u", i);
                         try
                         {
                             IPartDescriptor *pdesc = fdesc->queryPart(i-1);
@@ -2082,11 +2224,12 @@ public:
                             DBGLOG("\tremote part info");
                             this->print_partition(remotePDesc);
                             Owned<ILazyFileIO> file = createPhysicalFile(subNames.item(idx), pdesc, remotePDesc, ROXIE_FILE, numParts, cached != NULL, channel);
-                            DBGLOG("\tlazy filename=%s", file->queryFilename());
+                            DBGLOG("\tfilename=%s", file->queryFilename());
+                            DBGLOG("\tsource=%s", file->querySource()->queryFilename());
                             IPropertyTree &partProps = pdesc->queryProperties();
-                            //f->addFile(file.getClear(), partProps.getPropInt64("@offset"), subname);
+                            f->addFile(file.getClear(), partProps.getPropInt64("@offset"), subname);
                             // use the actual file name for the partition
-                            f->addFile(file.getClear(), partProps.getPropInt64("@offset"), file->queryFilename());
+                            //f->addFile(file.getClear(), partProps.getPropInt64("@offset"), file->queryFilename());
                         }
                         catch (IException *E)
                         {
@@ -2103,7 +2246,7 @@ public:
                     }
                     else
                     {
-                        DBGLOG("\tempty files");
+                        DBGLOG("\tThe partition foes not belong to here -> idx=%u", i);
                         f->addFile(NULL, 0, NULL);
                     }
                 }
