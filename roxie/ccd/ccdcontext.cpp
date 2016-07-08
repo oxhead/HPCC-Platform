@@ -1509,7 +1509,7 @@ public:
 
     void beginGraph(const char *graphName)
     {
-		DBGLOG("graph: beging -> %s", graphName);
+		//DBGLOG("graph: beging -> %s", graphName);
         if (debugContext)
         {
             probeManager.clear(); // Hack!
@@ -1570,10 +1570,10 @@ public:
 
     void runGraph()
     {
-		DBGLOG("CRoxieContextBase::runGraph");
+		//DBGLOG("CRoxieContextBase::runGraph");
         try
         {
-			graph->execute();
+            graph->execute();
 
             if (probeQuery)
                 graph->getProbeResponse(probeQuery);
@@ -1589,7 +1589,7 @@ public:
 
     virtual void executeGraph(const char * name, bool realThor, size32_t parentExtractSize, const void * parentExtract)
     {
-		DBGLOG("CRoxieContextBase::executeGraph -> name=%s, parentExtractSize=%u", name, parentExtractSize);
+		//DBGLOG("CRoxieContextBase::executeGraph -> name=%s, parentExtractSize=%u", name, parentExtractSize);
         assertex(parentExtractSize == 0);
         if (queryTraceLevel() > 8)
             CTXLOG("Executing graph %s", name);
@@ -1675,7 +1675,7 @@ public:
 
     virtual void addSlavesReplyLen(unsigned len)
     {
-		DBGLOG("CRoxieContextBase::addSlavesReplyLen -> %u", len);
+		//DBGLOG("CRoxieContextBase::addSlavesReplyLen -> %u", len);
 		//print_stacktrace();
         CriticalBlock b(statsCrit); // MORE: change to atomic_add, or may not need it at all?
         totSlavesReplyLen += len;
@@ -2480,7 +2480,7 @@ public:
 
     virtual const IResolvedFile *resolveLFN(const char *filename, bool isOpt)
     {
-		DBGLOG("graph:slave::resolveLFN -> filename=%s, isOpt=%d", filename, isOpt);
+		//DBGLOG("graph:slave::resolveLFN -> filename=%s, isOpt=%d", filename, isOpt);
         CDateTime cacheDate; // Note - this is empty meaning we don't know...
         return querySlaveDynamicFileCache()->lookupDynamicFile(*this, filename, cacheDate, 0, header, isOpt, false);
     }
@@ -2492,7 +2492,7 @@ public:
 
     virtual void onFileCallback(const RoxiePacketHeader &header, const char *lfn, bool isOpt, bool isLocal)
     {
-		DBGLOG("graphe:slave::onFileCallback -> lfn=%s", lfn);
+		//DBGLOG("graphe:slave::onFileCallback -> lfn=%s", lfn);
         // On a slave, we need to request info using our own header (not the one passed in) and need to get global rather than just local info
         // (possibly we could get just local if the channel matches but not sure there is any point)
         Owned<const IResolvedFile> dFile = resolveLFN(lfn, isOpt);
@@ -2726,7 +2726,7 @@ protected:
 
     void init()
     {
-		DBGLOG("CRoxieServerContext::init");
+		//DBGLOG("CRoxieServerContext::init");
         totSlavesReplyLen = 0;
         isRaw = false;
         isBlocked = false;
@@ -2740,7 +2740,7 @@ protected:
 
     void startWorkUnit()
     {
-		DBGLOG("CRoxieServerContext::startWorkUnit");
+		//DBGLOG("CRoxieServerContext::startWorkUnit");
         WorkunitUpdate wu(&workUnit->lock());
         wu->subscribe(SubscribeOptionAbort);
         addTimeStamp(wu, SSTglobal, NULL, StWhenQueryStarted);
@@ -2976,26 +2976,20 @@ public:
 
     virtual void process()
     {
-		DBGLOG("graph:server::process");
+        //DBGLOG("graph:server::process");
         MTIME_SECTION(myTimer, "Process");
         QueryTerminationCleanup threadCleanup;
-		DBGLOG("graph:server::process -> create EclProcess");
+        //DBGLOG("graph:server::process -> create EclProcess");
         EclProcessFactory pf = (EclProcessFactory) factory->queryDll()->getEntry("createProcess");
         Owned<IEclProcess> p = pf();
         try
         {
             if (debugContext)
                 debugContext->checkBreakpoint(DebugStateReady, NULL, NULL);
-			if (workflow)
-			{
-				DBGLOG("graph:server:process -> workload");
-				workflow->perform(this, p);
-			}
+            if (workflow)
+                workflow->perform(this, p);
 			else
-			{
-				DBGLOG("graph:server:process -> simple");
-				p->perform(this, 0);
-			}
+                p->perform(this, 0);
         }
         catch(WorkflowException *E)
         {

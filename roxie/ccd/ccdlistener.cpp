@@ -1314,7 +1314,7 @@ public:
     }
     virtual bool initQuery(StringBuffer &target, const char *name)
     {
-		DBGLOG("initQuery -> target=%s, name=%s", target.str(), name);
+		//DBGLOG("initQuery -> target=%s, name=%s", target.str(), name);
         queryName.set(name);
         queryFactory.setown(globalPackageSetManager->getQuery(name, &target, NULL, *logctx));
         if (!queryFactory)
@@ -1492,6 +1492,7 @@ public:
         maxThreadsActive = 0;
         suspended = _suspended;
         poolSize = _poolSize;
+        DBGLOG("RoxieProtocolMsgSink:init -> poolSize=%u", poolSize);
     }
     virtual CriticalSection &getActiveCrit()
     {
@@ -1610,29 +1611,29 @@ public:
 
     virtual void onQueryMsg(IHpccProtocolMsgContext *msgctx, IPropertyTree *msg, IHpccProtocolResponse *protocol, unsigned flags, PTreeReaderOptions xmlReadFlags, const char *target, unsigned idx, unsigned &memused, unsigned &slavesReplyLen)
     {
-		DBGLOG("onQueryMsg running -> flag=%u", flags);
+		//DBGLOG("onQueryMsg running -> flag=%u", flags);
         RoxieProtocolMsgContext *roxieMsgCtx = checkGetRoxieMsgContext(msgctx, msg);
         IQueryFactory *f = roxieMsgCtx->queryQueryFactory();
         Owned<IRoxieServerContext> ctx = f->createContext(msg, protocol, flags, *roxieMsgCtx->logctx, xmlReadFlags, target);
         if (!(flags & HPCC_PROTOCOL_NATIVE))
         {
-			DBGLOG("not protocol_native");
+			//DBGLOG("not protocol_native");
             ctx->process();
             protocol->finalize(idx);
             memused += ctx->getMemoryUsage();
-			DBGLOG("memory used=%d", memused);
+			//DBGLOG("memory used=%d", memused);
             slavesReplyLen += ctx->getSlavesReplyLen();
-			DBGLOG("slaveReplyLen=%d", slavesReplyLen);
+			//DBGLOG("slaveReplyLen=%d", slavesReplyLen);
         }
         else
         {
-			DBGLOG("protocol_native");
+			//DBGLOG("protocol_native");
             try
             {
                 ctx->process();
                 memused = ctx->getMemoryUsage();
                 slavesReplyLen = ctx->getSlavesReplyLen();
-				DBGLOG("slaveReplyLen=%d", slavesReplyLen);
+				//DBGLOG("slaveReplyLen=%d", slavesReplyLen);
                 ctx->done(false);
             }
             catch(...)

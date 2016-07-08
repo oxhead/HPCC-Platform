@@ -565,7 +565,7 @@ public:
 
     CMessageCollator(IRowManager *_rowMgr, unsigned _ruid) : rowMgr(_rowMgr), ruid(_ruid)
     {
-		DBGLOG("CMessageCollator:new -> ruid=%u", _ruid);
+		//DBGLOG("CMessageCollator:new -> ruid=%u", _ruid);
         if (checkTraceLevel(TRACE_MSGPACK, 3))
             DBGLOG("UdpCollator: CMessageCollator::CMessageCollator rowMgr=%p this=%p ruid=" RUIDF "", _rowMgr, this, ruid);
         memLimitExceeded = false;
@@ -598,7 +598,7 @@ public:
 
     virtual bool add_package(DataBuffer *dataBuff) 
     {
-		DBGLOG("CMessageCollator::add_package");
+		//DBGLOG("CMessageCollator::add_package");
         UdpPacketHeader *pktHdr = (UdpPacketHeader*) dataBuff->data;
         if (checkTraceLevel(TRACE_MSGPACK, 4))
         {
@@ -619,7 +619,7 @@ public:
         }
         activity = true;
         totalBytesReceived += pktHdr->length;
-		DBGLOG("CMessageCollator:add_package -> length=%u", pktHdr->length);
+		//DBGLOG("CMessageCollator:add_package -> length=%u", pktHdr->length);
         PUID puid = GETPUID(dataBuff);
         // MORE - I think we leak a PackageSequencer for messages that we only receive parts of - maybe only an issue for "catchall" case
         CriticalBlock b(mapCrit);
@@ -639,7 +639,7 @@ public:
             queueCrit.enter();
             pkSqncr->Link();
             queue.push(pkSqncr);
-			DBGLOG("@@ release sem -> signal");
+			//DBGLOG("@@ release sem -> signal");
             sem.signal();
             queueCrit.leave();
         }
@@ -651,7 +651,7 @@ public:
 	int sc = 0;
     virtual IMessageResult *getNextResult(unsigned time_out, bool &anyActivity) 
     {
-		DBGLOG("CMessageCollator:getNextResult");
+		//DBGLOG("CMessageCollator:getNextResult");
 		//print_stacktrace();
         if (checkTraceLevel(TRACE_MSGPACK, 3))
             DBGLOG("UdpCollator: CMessageCollator::getNextResult() timeout=%.8X ruid=%u rowMgr=%p this=%p", time_out, ruid, (void*) rowMgr, this);
@@ -667,10 +667,10 @@ public:
             throw MakeStringException(0, "memory pool exhausted");
         }
 		sc++;
-		DBGLOG("[%d] CMessageCollator:getNextResult -> wait", sc);
+		//DBGLOG("[%d] CMessageCollator:getNextResult -> wait", sc);
         if (sem.wait(time_out)) 
         {
-			DBGLOG("[%d] CMessageCollator:getNextResult -> get sem", sc);
+			//DBGLOG("[%d] CMessageCollator:getNextResult -> get sem", sc);
             queueCrit.enter();
             PackageSequencer *pkSqncr = queue.front();
             queue.pop();

@@ -873,7 +873,7 @@ public:
 
     void collatePacket(DataBuffer *dataBuff)
     {
-		DBGLOG("udp:CReceiveManager::collatePacket");
+		//DBGLOG("udp:CReceiveManager::collatePacket");
         const UdpPacketHeader *pktHdr = (UdpPacketHeader*) dataBuff->data;
 		//DBGLOG("udp:CReceiveManager::collatePacket -> ruid=%u", pktHdr->ruid);
         manager->noteReceived(*pktHdr);
@@ -930,7 +930,7 @@ public:
 
     virtual IMessageCollator *createMessageCollator(IRowManager *rowManager, ruid_t ruid)
     {
-		DBGLOG("createMessageCollator -> ruid=%u", ruid);
+		//DBGLOG("createMessageCollator -> ruid=%u", ruid);
         IMessageCollator *msgColl = createCMessageCollator(rowManager, ruid);
         if (udpTraceLevel >= 2) DBGLOG("UdpReceiver: createMessageCollator %p %u", msgColl, ruid);
         SpinBlock b(collatorsLock);

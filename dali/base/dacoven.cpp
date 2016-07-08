@@ -919,7 +919,7 @@ static ICoven *coven=NULL;
 
 ICoven &queryCoven()
 {
-    DBGLOG("dali:queryCoven");
+    //DBGLOG("dali:queryCoven");
     if (coven==NULL)
     {
         Owned<IException> e = MakeStringException(-1, "No access to Dali - this normally means a plugin call is being called from a thorslave");

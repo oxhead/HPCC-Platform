@@ -954,7 +954,7 @@ public:
 
     void writeOwn(unsigned destNodeIndex, DataBuffer *buffer, unsigned len, unsigned queue)
     {
-		DBGLOG("CSendManager:writeOwn -> dest=%u", destNodeIndex);
+		//DBGLOG("CSendManager:writeOwn -> dest=%u", destNodeIndex);
         // NOTE: takes ownership of the DataBuffer
         assert(queue < numQueues);
         assert(destNodeIndex < numNodes);

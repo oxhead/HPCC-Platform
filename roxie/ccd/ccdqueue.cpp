@@ -240,7 +240,7 @@ public:
 
     CRoxieQueryPacket(const void *_data, int lengthRemaining) : data((RoxiePacketHeader *) _data)
     {
-		DBGLOG("queue:CRoxieQueryPacket length=%d", lengthRemaining);
+		//DBGLOG("queue:CRoxieQueryPacket length=%d", lengthRemaining);
         assertex(lengthRemaining >= sizeof(RoxiePacketHeader));
         data->packetlength = lengthRemaining;
         const byte *finger = (const byte *) (data + 1);
@@ -1056,8 +1056,8 @@ public:
         }
         try
         {
-            if (logctx.queryTraceLevel() > 0)
-            //if (logctx.queryTraceLevel() > 8)
+            //if (logctx.queryTraceLevel() > 0)
+            if (logctx.queryTraceLevel() > 8)
             {
                 StringBuffer x;
                 logctx.CTXLOG("IBYTI delay controls : doIbytiDelay=%s numslaves=%u subchnl=%u : %s",
@@ -1076,7 +1076,7 @@ public:
                 bool primChannel = true;
                 if (subChannels[channel] != 1) 
                     primChannel = false;
-                DBGLOG("@@ channel=%u, subChannels=%u, numSlaves=%u, primary=%u", channel, subChannels[channel], numSlaves[channel], primChannel);
+                //DBGLOG("@@ channel=%u, subChannels=%u, numSlaves=%u, primary=%u", channel, subChannels[channel], numSlaves[channel], primChannel);
                 bool myTurnToDelayIBYTI =  true;  // all slaves will delay, except one
                 unsigned hdrHashVal = header.priorityHash();
                 if ((((hdrHashVal % numSlaves[channel]) + 1) == subChannels[channel]))
@@ -1085,8 +1085,8 @@ public:
                 if (myTurnToDelayIBYTI) 
                 {
                     unsigned delay = getIbytiDelay(channel, header);
-                    if (logctx.queryTraceLevel() > 0)
-                    //if (logctx.queryTraceLevel() > 6)
+                    //if (logctx.queryTraceLevel() > 0)
+                    if (logctx.queryTraceLevel() > 6)
                     {
                         StringBuffer x;
                         logctx.CTXLOG("YES myTurnToDelayIBYTI channel=%s delay=%u hash=%u %s", primChannel?"primary":"secondary", delay, hdrHashVal, header.toString(x).str());
@@ -1100,7 +1100,7 @@ public:
 
                     if (delay)
                     {
-                        DBGLOG("needs to delay with %u", delay);
+                        //DBGLOG("needs to delay with %u", delay);
                         ibytiSem.wait(delay);
                         if (abortJob)
                             resetIbytiDelay(channel); // we know there is an active buddy on the channel...
@@ -1131,8 +1131,8 @@ public:
             {
                 CriticalBlock b(actCrit);
                 busy = false;  // Keep order - before setActivity below
-                if (logctx.queryTraceLevel() > 0)
-                //if (logctx.queryTraceLevel() > 5)
+                //if (logctx.queryTraceLevel() > 0)
+                if (logctx.queryTraceLevel() > 5)
                 {
                     StringBuffer x;
                     logctx.CTXLOG("Stop before processing - activity aborted %s", header.toString(x).str());
@@ -1140,27 +1140,27 @@ public:
                 return;
             }
             
-            // guess this affects performance a lot
-            Owned <ISlaveActivityFactory> factory = queryFactory->getSlaveActivityFactory(activityId);
-            assertex(factory);
-            IRoxieSlaveActivity *currentActivity = factory->createActivity(logctx, packet);
-            if (!currentActivity->hasLocalData())
-            {
-                DBGLOG("@ no local data");
-                CriticalBlock b(actCrit);
-                busy = false;
-                DBGLOG("yeild to other slave nodes");
-                return;
-            }
-            else
-            {
-                DBGLOG("@ has local data");
-            }
+            //if (!currentActivity->hasLocalData())
+            //{
+            //    DBGLOG("@ no local data");
+            //    CriticalBlock b(actCrit);
+            //    busy = false;
+            //    DBGLOG("yeild to other slave nodes");
+            //    //return;
+            //}
+            //else
+            //{
+            //    DBGLOG("@ has local data");
+            //}
             
             if (!debugging)
                 ROQ->sendIbyti(header, logctx);
             atomic_inc(&activitiesStarted);
 
+            // guess this affects performance a lot
+            Owned <ISlaveActivityFactory> factory = queryFactory->getSlaveActivityFactory(activityId);
+            assertex(factory);
+            IRoxieSlaveActivity *currentActivity = factory->createActivity(logctx, packet);
             setActivity(currentActivity);
 #ifdef TEST_SLAVE_FAILURE
             bool skip = false;
@@ -1210,7 +1210,7 @@ public:
             if (!skip)
             {
 #endif
-				DBGLOG("# run slave activity -> activityId=%u", activityId);
+				DBGLOG("# run slave activity -> activityId=%u, kind=%s", activityId, typeid(*currentActivity).name());
                 Owned<IMessagePacker> output = activity->process();
                 if (logctx.queryTraceLevel() > 5)
                 {
@@ -1599,7 +1599,7 @@ public:
 protected:
     void doFileCallback(IRoxieQueryPacket *packet)
     {
-		DBGLOG("ROQ:doFileCallback");
+		//DBGLOG("ROQ:doFileCallback");
         // This is called on the main slave reader thread so needs to be as fast as possible to avoid lost packets
         const char *lfn;
         const char *data;
@@ -1718,7 +1718,7 @@ public:
 
     virtual void sendPacket(IRoxieQueryPacket *x, const IRoxieContextLogger &logctx)
     {
-		DBGLOG("ROQ:sendPacket");
+		//DBGLOG("ROQ:sendPacket");
         RoxiePacketHeader &header = x->queryHeader();
 
         unsigned length = x->queryHeader().packetlength;
@@ -1915,7 +1915,7 @@ public:
 
     virtual IMessagePacker *createOutputStream(RoxiePacketHeader &header, bool outOfBand, const IRoxieContextLogger &logctx)
     {
-        DBGLOG("RoxieSocketQueueManager::createOutputStream");
+        //DBGLOG("RoxieSocketQueueManager::createOutputStream");
         unsigned qnum = outOfBand ? 0 : ((header.retries & ROXIE_FASTLANE) || !fastLaneQueue) ? 1 : 2;
         if (logctx.queryTraceLevel() > 8)
         {
@@ -1968,8 +1968,8 @@ public:
         atomic_inc(&ibytiPacketsReceived);
         bool preActivity = false;
 
-        if (traceLevel > 0)
-//        if (traceLevel > 10)
+        //if (traceLevel > 0)
+        if (traceLevel > 10)
         {
             IpAddress peer;
             StringBuffer s, s1;
@@ -1984,8 +1984,8 @@ public:
             abortRunning(header, workers, false, preActivity);
             queue.remove(header);
 
-            if (traceLevel > 0)
-            //if (traceLevel > 10)
+            //if (traceLevel > 0)
+            if (traceLevel > 10)
             {
                 StringBuffer s; 
                 DBGLOG("Abort activity %s", header.toString(s).str());
@@ -2033,7 +2033,7 @@ public:
 
     void processMessage(MemoryBuffer &mb, RoxiePacketHeader &header, RoxieQueue &queue, IThreadPool *workers)
     {
-		DBGLOG("RoxieSocketQueueManager:processMessage -> server=%u, activityId=%u", header.serverIdx, header.activityId);
+		//DBGLOG("RoxieSocketQueueManager:processMessage -> server=%u, activityId=%u", header.serverIdx, header.activityId);
         // NOTE - this thread needs to do as little as possible - just read packets and queue them up - otherwise we can get packet loss due to buffer overflow
         // DO NOT put tracing on this thread except at very high tracelevels!
 
@@ -2170,7 +2170,7 @@ public:
                     processMessage(mb, header, slaQueue, slaWorkers);
                 else
 #endif
-				DBGLOG("RoxieSocketQueueManager:run -> receive a packet from %u for %u", header.serverIdx, header.activityId);
+				//DBGLOG("RoxieSocketQueueManager:run -> receive a packet from %u for %u", header.serverIdx, header.activityId);
                 if (header.activityId & ROXIE_HIGH_PRIORITY)
                     processMessage(mb, header, hiQueue, hiWorkers);
                 else
@@ -2411,7 +2411,7 @@ public:
 
     virtual IMessageResult* getNextResult(unsigned time_out, bool &anyActivity)
     {
-		DBGLOG("CLocalMessageCollator:getNextResult");
+		//DBGLOG("CLocalMessageCollator:getNextResult");
         anyActivity = false;
         if (!sem.wait(time_out))
             return NULL;
@@ -2427,7 +2427,7 @@ public:
 
     virtual void enqueueMessage(bool outOfBand, void *data, unsigned datalen, void *meta, unsigned metalen, void *header, unsigned headerlen)
     {
-		DBGLOG("CLocalMessageCollator:enqueueMessage");
+		//DBGLOG("CLocalMessageCollator:enqueueMessage");
         CriticalBlock c(crit);
         if (outOfBand)
             pending.enqueueHead(new CLocalMessageResult(data, datalen, meta, metalen, header, headerlen));
@@ -2439,7 +2439,7 @@ public:
 
     virtual unsigned queryBytesReceived() const
     {
-		DBGLOG("queue:CLocalMessageCollator::queryBytesReceived");
+		//DBGLOG("queue:CLocalMessageCollator::queryBytesReceived");
         return totalBytesReceived;
     }
 };
@@ -2544,7 +2544,7 @@ public:
 
     virtual void sendPacket(IRoxieQueryPacket *packet, const IRoxieContextLogger &logctx)
     {
-		DBGLOG("RoxieLocalQueueManager:sendPacket");
+		//DBGLOG("RoxieLocalQueueManager:sendPacket");
         RoxiePacketHeader &header = packet->queryHeader();
         unsigned retries = header.thisChannelRetries();
         if (header.activityId == ROXIE_FILECALLBACK || header.activityId == ROXIE_DEBUGCALLBACK )
@@ -2632,7 +2632,7 @@ public:
 
     virtual IMessagePacker *createOutputStream(RoxiePacketHeader &header, bool outOfBand, const IRoxieContextLogger &logctx)
     {
-        DBGLOG("RoxieLocalQueueManager::createOutputStream");
+        //DBGLOG("RoxieLocalQueueManager::createOutputStream");
         return new LocalMessagePacker(header, outOfBand, receiveManager);
     }
 

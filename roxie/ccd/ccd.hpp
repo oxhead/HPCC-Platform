@@ -264,7 +264,7 @@ public:
 
     RoxiePacketHeader(const RoxiePacketHeader &source, unsigned _activityId)
     {
-		DBGLOG("ccd:RoxiePacketHeader -> source_server=%u, source_channel=%u, activityId=%u", source.serverIdx, source.channel, _activityId);
+		//DBGLOG("ccd:RoxiePacketHeader -> source_server=%u, source_channel=%u, activityId=%u", source.serverIdx, source.channel, _activityId);
         // Used to create the header to send a callback to originating server or an IBYTI to a buddy
         activityId = _activityId;
         uid = source.uid;
@@ -554,7 +554,7 @@ extern void dumpBuffer(const char *title, const void *buf, unsigned recSize);
 
 inline unsigned getBondedChannel(unsigned partNo)
 {
-	DBGLOG("# numChannels=%u, partNo=%u", numChannels, partNo);
+	//DBGLOG("# numChannels=%u, partNo=%u", numChannels, partNo);
     return ((partNo - 1) % numChannels) + 1;
 }
 

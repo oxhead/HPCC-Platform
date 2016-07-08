@@ -1936,7 +1936,7 @@ StringBuffer &CClientSDSManager::getExternalReport(StringBuffer &out)
 
 IPropertyTree &CClientSDSManager::queryProperties() const
 {
-    DBGLOG("CClientSDSManager::queryProperties");
+    //DBGLOG("CClientSDSManager::queryProperties");
     if (properties) return *properties;
     CDaliVersion serverVersionNeeded("3.1");
     if (queryDaliServerVersion().compare(serverVersionNeeded) < 0)
@@ -2231,16 +2231,16 @@ bool CClientSDSManager::updateEnvironment(IPropertyTree *newEnv, bool forceGroup
 
 ISDSManager &querySDS()
 {
-    DBGLOG("dali:querySDS");
+    //DBGLOG("dali:querySDS");
     CriticalBlock block(SDScrit);
     if (SDSManager)
         return *SDSManager;
     else if (!queryCoven().inCoven())
     {
-        DBGLOG("\tnot coven");
+        //DBGLOG("\tnot coven");
         if (!SDSManager)
         {
-            DBGLOG("\tinitialize a CClientSDSManager");
+            //DBGLOG("\tinitialize a CClientSDSManager");
             SDSManager = new CClientSDSManager();
         }
 
@@ -2248,7 +2248,7 @@ ISDSManager &querySDS()
     }
     else
     {
-        DBGLOG("\tnot initialized");
+        //DBGLOG("\tnot initialized");
         SDSManager = &querySDSServer();
         return *SDSManager;
     }
