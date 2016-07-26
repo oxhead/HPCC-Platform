@@ -93,6 +93,8 @@ IPropertyTree* ccdChannels;
 StringArray allQuerySetNames;
 IProperties *targetAliases;
 
+bool enableElasticRoxie;
+
 bool allFilesDynamic;
 bool lockSuperFiles;
 bool crcResources;
@@ -943,6 +945,10 @@ int STARTQUERY_API start_query(int argc, const char *argv[])
             else
                 throw MakeStringException(MSGAUD_operator, ROXIE_INVALID_TOPOLOGY, "Invalid topology file - multicastLast not set");
         }
+        
+        // ElasticRoxie ralted
+        enableElasticRoxie = topology->getPropBool("@enableElasticRoxie", true);
+        DBGLOG("Enable ElasticRoxie: %u", enableElasticRoxie);
 
         // Generate the slave channels
         unsigned numDataCopies = topology->getPropInt("@numDataCopies", 1);

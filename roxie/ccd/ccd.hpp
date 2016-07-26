@@ -406,6 +406,9 @@ interface IQueryDll;
 interface IResolvedFileCache;
 extern IResolvedFileCache *fileMapping;
 
+// Elastic Roxie configuration
+extern bool enableElasticRoxie;
+
 // Global configuration info
 extern bool shuttingDown;
 extern unsigned numChannels;

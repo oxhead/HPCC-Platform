@@ -135,6 +135,7 @@ public:
     CMemKeyIndex(int _iD, IMemoryMappedFile *_io, const char *_name, bool _isTLK);
 
     virtual const char *queryFileName() { return name.get(); }
+    virtual IFileIO *querySource() { return NULL; }
 // INodeLoader impl.
     virtual CJHTreeNode *loadNode(offset_t offset);
 };
@@ -149,6 +150,7 @@ public:
     CDiskKeyIndex(int _iD, IFileIO *_io, const char *_name, bool _isTLK, bool _allowPreload);
 
     virtual const char *queryFileName() { return name.get(); }
+    virtual IFileIO *querySource() { return io.get(); }
 // INodeLoader impl.
     virtual CJHTreeNode *loadNode(offset_t offset);
 };

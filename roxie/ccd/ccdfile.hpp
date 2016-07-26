@@ -52,6 +52,8 @@ interface ILazyFileIO : extends IFileIO
 
     virtual void setCache(const IRoxieFileCache *) = 0;
     virtual void removeCache(const IRoxieFileCache *) = 0;
+    
+    virtual void print_detail() = 0;
 };
 
 interface IRoxieFileCache : extends IInterface

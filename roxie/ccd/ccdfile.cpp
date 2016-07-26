@@ -334,6 +334,7 @@ public:
                 setFailure(); // lazyOpen will then reopen it...
                 currentIdx = 0;
                 remote = false;
+                // keep the sources for future uses?
                 //sources.kill();
                 sources.add(*logical.getLink(), 0);
                 if (!lazyOpen)
@@ -346,6 +347,17 @@ public:
         // do we need this?
         disconnectRemoteFile(f);
         return false;
+    }
+    
+    virtual void print_detail()
+    {
+        DBGLOG("target=%s", logical->queryFilename());
+        for (int i=0; i<sources.length();i++)
+        {
+            IFile &file = sources.item(i);
+            DBGLOG("\t%s %s", file.exists()?"O":"X", file.queryFilename());
+        }
+        
     }
 
     virtual void addSource(IFile *newSource)
@@ -556,17 +568,17 @@ static int getClusterPriority(const char *clusterName)
 static void appendRemoteLocations(IPartDescriptor *pdesc, StringArray &locations, const char *localFileName, const char *fromCluster, bool includeFromCluster)
 {
     StringBuffer sb;
-    DBGLOG("file:appendRemoteLocations -> part=%s, locations=%u, lfn=%s, cluster=%s", pdesc->getPath(sb).str(), locations.length(), localFileName, fromCluster);
+    //DBGLOG("file:appendRemoteLocations -> part=%s, locations=%u, lfn=%s, cluster=%s", pdesc->getPath(sb).str(), locations.length(), localFileName, fromCluster);
     IFileDescriptor &fdesc = pdesc->queryOwner();
     unsigned numCopies = pdesc->numCopies();
     unsigned lastClusterNo = (unsigned) -1;
     unsigned numThisCluster = 0;
     unsigned initialSize = locations.length();
-    DBGLOG("\tnumCopies=%u", numCopies);
-    DBGLOG("\tlastClusterNo=%u", lastClusterNo);
-    DBGLOG("\tnumThisCluster=%u", numThisCluster);
-    DBGLOG("\tinitialSize=%u", initialSize);
-    DBGLOG("\tfromCluster=%s", fromCluster);
+    //DBGLOG("\tnumCopies=%u", numCopies);
+    //DBGLOG("\tlastClusterNo=%u", lastClusterNo);
+    //DBGLOG("\tnumThisCluster=%u", numThisCluster);
+    //DBGLOG("\tinitialSize=%u", initialSize);
+    //DBGLOG("\tfromCluster=%s", fromCluster);
     int priority = 0;
     IntArray priorities;
     for (unsigned copy = 0; copy < numCopies; copy++)
@@ -574,13 +586,13 @@ static void appendRemoteLocations(IPartDescriptor *pdesc, StringArray &locations
         unsigned clusterNo = pdesc->copyClusterNum(copy);
         StringBuffer clusterName;
         fdesc.getClusterGroupName(clusterNo, clusterName);
-        DBGLOG("\tcluster name=%s", clusterName.str());
+        //DBGLOG("\tcluster name=%s", clusterName.str());
         if (fromCluster && *fromCluster)
         {
             bool matches = strieq(clusterName.str(), fromCluster);
             if (matches!=includeFromCluster)
             {
-                DBGLOG("\tskip this cluster");
+                //DBGLOG("\tskip this cluster");
                 continue;
             }
         }
@@ -588,13 +600,13 @@ static void appendRemoteLocations(IPartDescriptor *pdesc, StringArray &locations
         pdesc->getFilename(copy,r);
         StringBuffer s;
         r.getPath(s);
-        DBGLOG("\tremote file name -> copy=%u, filename=%s", copy, s.str());
+        //DBGLOG("\tremote file name -> copy=%u, filename=%s", copy, s.str());
         StringBuffer path;
         r.getRemotePath(path);
-        DBGLOG("\tremotePath=%s", path.str());
+        //DBGLOG("\tremotePath=%s", path.str());
         if (localFileName && r.isLocal())
         {
-            DBGLOG("\t\tis a local path");
+            //DBGLOG("\t\tis a local path");
             StringBuffer l;
             r.getLocalPath(l);
             if (streq(l, localFileName))
@@ -603,14 +615,14 @@ static void appendRemoteLocations(IPartDescriptor *pdesc, StringArray &locations
 #ifndef ELASTIC_ENABLED
         if (clusterNo == lastClusterNo)
         {
-            DBGLOG("\t\tskip becuase duplicate cluster");
+            //DBGLOG("\t\tskip becuase duplicate cluster");
             numThisCluster++;
             if (numThisCluster > 2)  // Don't add more than 2 from one cluster
                 continue;
         }
         else
         {
-            DBGLOG("\t\tadd cluster = %u", lastClusterNo);
+            //DBGLOG("\t\tadd cluster = %u", lastClusterNo);
             numThisCluster = 1;
             lastClusterNo = clusterNo;
             if (preferredClusters)
@@ -705,19 +717,19 @@ class CRoxieFileCache : public CInterface, implements ICopyFileProgress, impleme
                            const StringArray &remoteLocationInfo,
                            offset_t size, const CDateTime &modified, unsigned crc)
     {
-        DBGLOG("CRoxieFileCache:openFile -> lfn=%s, partNo=%u, localLocaltion=%s, size=%llu", lfn, partNo, localLocation, size);
+        //DBGLOG("CRoxieFileCache:openFile -> lfn=%s, partNo=%u, localLocaltion=%s, size=%llu", lfn, partNo, localLocation, size);
         //print_stacktrace();
         Owned<IFile> local = createIFile(localLocation);
         bool isCompressed = testMode ? false : pdesc->queryOwner().isCompressed();
         Owned<CLazyFileIO> ret = new CLazyFileIO(local.getLink(), size, modified, crc, isCompressed);
         RoxieFileStatus fileStatus = fileUpToDate(local, size, modified, crc, isCompressed);
-        DBGLOG("\tFileNotFound=%u, FileDateMismatch=%u, FileCRCMismatch=%u, FileIsValid=%u, FileNotFound=%u", FileSizeMismatch, FileDateMismatch, FileCRCMismatch, FileIsValid, FileNotFound);
-        DBGLOG("\tfileStatus=%u", fileStatus);
+        //DBGLOG("\tFileNotFound=%u, FileDateMismatch=%u, FileCRCMismatch=%u, FileIsValid=%u, FileNotFound=%u", FileSizeMismatch, FileDateMismatch, FileCRCMismatch, FileIsValid, FileNotFound);
+        //DBGLOG("\tfileStatus=%u", fileStatus);
         // hack to support elasticity
         // _checkOpen will skip this file?
         if (fileStatus == FileIsValid)
         {
-            DBGLOG("\tadd a local location: %s", localLocation);
+            //DBGLOG("\tadd a local location: %s", localLocation);
             ret->addSource(local.getLink());
             ret->setRemote(false);
         }
@@ -726,7 +738,7 @@ class CRoxieFileCache : public CInterface, implements ICopyFileProgress, impleme
         
         else
         {
-            DBGLOG("\tcouldn't find the local location: %s", localLocation);
+            //DBGLOG("\tcouldn't find the local location: %s", localLocation);
             bool addedOne = false;
 
             // put the peerRoxieLocations next in the list
@@ -735,10 +747,10 @@ class CRoxieFileCache : public CInterface, implements ICopyFileProgress, impleme
                 localLocations.append("test.buddy");
             else
             {
-                DBGLOG("\t@@ create peer locations");
+                //DBGLOG("\t@@ create peer locations");
                 appendRemoteLocations(pdesc, localLocations, localLocation, roxieName, true);  // Adds all locations on the same cluster
             }
-            DBGLOG("\t# of peer locations: %u", localLocations.length());
+            //DBGLOG("\t# of peer locations: %u", localLocations.length());
             ForEachItemIn(roxie_idx, localLocations)
             {
                 try
@@ -749,9 +761,8 @@ class CRoxieFileCache : public CInterface, implements ICopyFileProgress, impleme
                     DBGLOG("\tlocation candidate=%s, status=%u", remoteName, status);
                     if (status==FileIsValid)
                     {
-                        DBGLOG("\t\tFileIsValid");
-                        if (true)
-                        //if (miscDebugTraceLevel > 5)
+                        //DBGLOG("\t\tFileIsValid");
+                        if (miscDebugTraceLevel > 5)
                             DBGLOG("adding peer location %s", remoteName);
                         ret->addSource(remote.getClear());
                         addedOne = true;
@@ -760,8 +771,7 @@ class CRoxieFileCache : public CInterface, implements ICopyFileProgress, impleme
                     {
                         // Even though it's not on the buddy (yet), add it to the locations since it may well be there
                         // by the time we come to copy (and if it is, we want to copy from there)
-                        if (miscDebugTraceLevel > 0)
-                        //if (miscDebugTraceLevel > 5)
+                        if (miscDebugTraceLevel > 5)
                             DBGLOG("adding missing peer location %s", remoteName);
                         ret->addSource(remote.getClear());
                         // Don't set addedOne - we need to go to remote too
@@ -778,21 +788,19 @@ class CRoxieFileCache : public CInterface, implements ICopyFileProgress, impleme
 
             if (!addedOne && (copyResources || useRemoteResources || testMode))  // If no peer locations available, go to remote
             {
-                DBGLOG("@ requires to read file from remote");
+                //DBGLOG("@ requires to read file from remote");
                 ForEachItemIn(idx, remoteLocationInfo)
                 {
                     try
                     {
                         const char *remoteName = remoteLocationInfo.item(idx);
                         Owned<IFile> remote = createIFile(remoteName);
-                        if (traceLevel > 0)
-                        //if (traceLevel > 5)
+                        if (traceLevel > 5)
                             DBGLOG("checking remote location %s", remoteName);
                         RoxieFileStatus status = fileUpToDate(remote, size, modified, crc, isCompressed);
                         if (status==FileIsValid)
                         {
                             if (miscDebugTraceLevel > 5)
-                            //if (miscDebugTraceLevel > 5)
                                 DBGLOG("adding remote location %s", remoteName);
                             ret->addSource(remote.getClear());
                             addedOne = true;
@@ -875,7 +883,7 @@ class CRoxieFileCache : public CInterface, implements ICopyFileProgress, impleme
         {
             f->setCopying(true);
             sourceFile = f->querySource();
-            DBGLOG("\tsourceFile=%s", sourceFile->queryFilename());
+            //DBGLOG("\tsourceFile=%s", sourceFile->queryFilename());
         }
         catch (IException *E)
         {
@@ -908,7 +916,7 @@ class CRoxieFileCache : public CInterface, implements ICopyFileProgress, impleme
             {
                 if (useHardLink)
                 {
-                    DBGLOG("\tuse hard link");
+                    //DBGLOG("\tuse hard link");
                     hardLinkCreated = f->createHardFileLink();
                 }
 
@@ -975,11 +983,11 @@ class CRoxieFileCache : public CInterface, implements ICopyFileProgress, impleme
 
     bool doCopy(ILazyFileIO *f, bool background, bool displayFirstFileMessage, CFflags copyFlags=CFnone)
     {
-        DBGLOG("CRoxieFileCache:doCopy -> background=%u", background);
+        //DBGLOG("CRoxieFileCache:doCopy -> background=%u", background);
         //print_stacktrace();
         if (!f->isRemote())
         {
-            DBGLOG("\tfile is aready being loaded");
+            //DBGLOG("\tfile is aready being loaded");
             f->copyComplete();
         }
         else
@@ -1012,7 +1020,7 @@ public:
 
     CRoxieFileCache(bool _testMode = false) : bct(*this), hct(*this), testMode(_testMode)
     {
-        DBGLOG("CRoxieFileCache -> new");
+        //DBGLOG("CRoxieFileCache -> new");
         aborting = false;
         closing = false;
         closePending[false] = false;
@@ -1053,7 +1061,7 @@ public:
 
         virtual int run()
         {
-            DBGLOG("BackgroundCopyThread:run");
+            //DBGLOG("BackgroundCopyThread:run");
             return owner.runBackgroundCopy();
         }
     } bct;
@@ -1074,7 +1082,7 @@ public:
         bctStarted.signal();
         if (traceLevel)
             DBGLOG("Background copy thread %p starting", this);
-        DBGLOG("CRoxieFileCache::runBackgroundCopy");
+        //DBGLOG("CRoxieFileCache::runBackgroundCopy");
         //print_stacktrace();
         try
         {
@@ -1104,7 +1112,7 @@ public:
                 {
                     try
                     {
-                        DBGLOG("\tdoing copy -> %s", next->queryTarget()->queryFilename());
+                        //DBGLOG("\tdoing copy -> %s", next->queryTarget()->queryFilename());
                         fileCopied = doCopy(next, true, (fileCopiedCount==0) ? true : false, CFflush_rdwr);
                         CriticalBlock b(crit);
                         if (fileCopied)
@@ -1229,12 +1237,12 @@ public:
                                      IPartDescriptor *pdesc, unsigned numParts, unsigned replicationLevel,
                                      const StringArray &deployedLocationInfo, bool startFileCopy)
     {
-        DBGLOG("CRoxieFileCache::lookupFile -> lfn=%s, numParts=%u", lfn, numParts);
+        //DBGLOG("CRoxieFileCache::lookupFile -> lfn=%s, numParts=%u", lfn, numParts);
         //print_stacktrace();
         IPropertyTree &partProps = pdesc->queryProperties();
         offset_t dfsSize = partProps.getPropInt64("@size", -1);
         bool local = partProps.getPropBool("@local");
-        DBGLOG("\tlocal=%u", local);
+        //DBGLOG("\tlocal=%u", local);
         unsigned crc;
         if (!crcResources || !pdesc->getCrc(crc))
             crc = 0;
@@ -1262,13 +1270,13 @@ public:
                 dlfn.clearForeign();
             makePhysicalPartName(dlfn.get(), partNo, numParts, localLocation, replicationLevel, DFD_OSdefault);
         }
-        DBGLOG("\tlocalLocation=%s", localLocation.str());
+        //DBGLOG("\tlocalLocation=%s", localLocation.str());
         Owned<ILazyFileIO> ret;
         try
         {
             CriticalBlock b(crit);
             Linked<ILazyFileIO> f = files.getValue(localLocation);
-            DBGLOG("\tfile is alive=%u", (f && f->isAlive()));
+            //DBGLOG("\tfile is alive=%u", (f && f->isAlive()));
             if (f && f->isAlive())
             {
                 if ((dfsSize != (offset_t) -1 && dfsSize != f->getSize()) ||
@@ -1284,12 +1292,12 @@ public:
                         switch (fileType)
                         {
                             case ROXIE_KEY:
-                                DBGLOG("\tROXIE_KEY");
+                                //DBGLOG("\tROXIE_KEY");
                                 fileErrorList.setValue(lfn, "Key");
                                 break;
 
                             case ROXIE_FILE:
-                                DBGLOG("\tROXIE_FILE");
+                                //DBGLOG("\tROXIE_FILE");
                                 fileErrorList.setValue(lfn, "File");
                                 break;
                         }
@@ -1306,12 +1314,12 @@ public:
             {
                 if (ret->isRemote())
                 {
-                    DBGLOG("\tthis is a remote file");
+                    //DBGLOG("\tthis is a remote file");
                     if (copyResources) // MORE - should always copy peer files
                     {
                         if (numParts==1 || (partNo==numParts && fileType==ROXIE_KEY))
                         {
-                            DBGLOG("\tdirect copy the index -> partNo=%u", partNo);
+                            //DBGLOG("\tdirect copy the index -> partNo=%u", partNo);
                             ret->checkOpen();
                             doCopy(ret, false, false, CFflush_rdwr);
                             return ret.getLink();
@@ -1325,7 +1333,7 @@ public:
                         else
                             todo.append(*ret);
                         atomic_inc(&numFilesToProcess);  // must increment counter for SNMP accuracy
-                        DBGLOG("\tsignal: about to start");
+                        //DBGLOG("\tsignal: about to start");
                         toCopy.signal();
 
                     }
@@ -1485,7 +1493,7 @@ public:
 
 ILazyFileIO *createPhysicalFile(const char *id, IPartDescriptor *pdesc, IPartDescriptor *remotePDesc, RoxieFileType fileType, int numParts, bool startCopy, unsigned channel)
 {
-    DBGLOG("createPhysicalFile -> id=%s, type=%u, parts=%u, channel=%u", id, fileType, numParts, channel);
+    //DBGLOG("createPhysicalFile -> id=%s, type=%u, parts=%u, channel=%u", id, fileType, numParts, channel);
     
     StringArray remoteLocations;
     const char *peerCluster = pdesc->queryOwner().queryProperties().queryProp("@cloneFromPeerCluster");
@@ -1496,13 +1504,12 @@ ILazyFileIO *createPhysicalFile(const char *id, IPartDescriptor *pdesc, IPartDes
     }
     else
     {
-        DBGLOG("\tnot from peerCluster");
+        //DBGLOG("\tnot from peerCluster");
         appendRemoteLocations(pdesc, remoteLocations, NULL, roxieName, false);      // Add from any cluster on same dali, other than mine
     }
     if (remotePDesc)
     {
-        DBGLOG("\tcontains remote locations");
-        
+        //DBGLOG("\tcontains remote locations");
         appendRemoteLocations(remotePDesc, remoteLocations, NULL, NULL, false);    // Then any remote on remote dali
     }
 
@@ -1729,15 +1736,11 @@ public:
 
     void addFile(IFileIO *f, offset_t base, const char *filename)
     {
-        DBGLOG("CFileIOArray::addFile -> base=%llu, filename=%s", base, filename);
+        //DBGLOG("CFileIOArray::addFile -> base=%llu, filename=%s", base, filename);
         if (f)
         {
-            DBGLOG("\ta valid FileIO");
+            //DBGLOG("\ta valid FileIO");
             valid++;
-        }
-        else
-        {
-            DBGLOG("\tnot a vlid FileIO");
         }
         files.append(f);
         bases.append(base);
@@ -1746,7 +1749,7 @@ public:
     
     void updateFile(unsigned partNo, IFileIO *f, offset_t base, const char *filename)
     {
-        DBGLOG("CFileIOArray::updateFile -> partNo=%u, base=%llu, filename=%s", partNo, base, filename);
+        //DBGLOG("CFileIOArray::updateFile -> partNo=%u, base=%llu, filename=%s", partNo, base, filename);
         files.replace(f, base);
         bases.replace(base, base);
         filenames.replace(filename, base);
@@ -1847,7 +1850,7 @@ protected:
 
     void addFile(const char *subName, IFileDescriptor *fdesc, IFileDescriptor *remoteFDesc)
     {
-        DBGLOG("CResolvedFile:addFile -> subName=%s", subName);
+        //DBGLOG("CResolvedFile:addFile -> subName=%s", subName);
         subNames.append(subName);
         subFiles.append(fdesc);
         remoteSubFiles.append(remoteFDesc);
@@ -1902,13 +1905,13 @@ public:
     CResolvedFile(const char *_lfn, const char *_physicalName, IDistributedFile *_dFile, RoxieFileType _fileType, IRoxieDaliHelper* _daliHelper, bool isDynamic, bool cacheIt, bool writeAccess, bool _isSuperFile)
     : daliHelper(_daliHelper), lfn(_lfn), physicalName(_physicalName), dFile(_dFile), fileType(_fileType), isSuper(_isSuperFile)
     {
-        DBGLOG("CResolvedFile::new -> logicalName=%s, physicalName=%s, fileType=%u", +lfn, _physicalName, _fileType);
+        //DBGLOG("CResolvedFile::new -> logicalName=%s, physicalName=%s, fileType=%u", +lfn, _physicalName, _fileType);
         cached = NULL;
         fileSize = 0;
         fileCheckSum = 0;
         if (dFile)
         {
-            DBGLOG("\tthis is a distributed file");
+            //DBGLOG("\tthis is a distributed file");
             if (traceLevel > 5)
                 DBGLOG("Roxie server adding information for file %s", lfn.get());
             bool tsSet = dFile->getModificationTime(fileTimeStamp);
@@ -1917,7 +1920,7 @@ public:
             IDistributedSuperFile *superFile = dFile->querySuperFile();
             if (superFile)
             {
-                DBGLOG("\tthis is a superfile");
+                //DBGLOG("\tthis is a superfile");
                 isSuper = true;
                 Owned<IDistributedFileIterator> subs = superFile->getSubFileIterator(true);
                 ForEach(*subs)
@@ -1940,7 +1943,7 @@ public:
             }
             else // normal file, not superkey
             {
-                DBGLOG("\tthis is a normal file");
+                //DBGLOG("\tthis is a normal file");
                 isSuper = false;
                 properties.set(&dFile->queryAttributes());
                 Owned<IFileDescriptor> fDesc = dFile->getFileDescriptor();
@@ -2174,7 +2177,7 @@ public:
     
     virtual IFileIOArray *getIFileIOArray(bool isOpt, unsigned channel) const
     {
-        DBGLOG("CResolvedFile::getIFileIOArray");
+        //DBGLOG("CResolvedFile::getIFileIOArray");
         CriticalBlock b(lock);
         IFileIOArray *ret = ioArrayMap.get(channel);
         if (!ret)
@@ -2204,47 +2207,48 @@ public:
     }
     IFileIOArray *createIFileIOArray(bool isOpt, unsigned channel) const
     {
-        DBGLOG("CResolvedFile:createIFileIOArray -> channel=%u, isOpt=%u", channel, isOpt);
+        //DBGLOG("CResolvedFile:createIFileIOArray -> channel=%u, isOpt=%u", channel, isOpt);
         Owned<CFileIOArray> f = new CFileIOArray();
         f->addFile(NULL, 0, NULL);
         ForEachItemIn(idx, subFiles)
         {
-            DBGLOG("\tidx=%u", idx);
+            //DBGLOG("\tidx=%u", idx);
             IFileDescriptor *fdesc = subFiles.item(idx);
             IFileDescriptor *remoteFDesc = remoteSubFiles.item(idx);
             const char *subname = subNames.item(idx);
-            DBGLOG("\tsubname=%s", subname);
+            //DBGLOG("\tsubname=%s", subname);
             if (fdesc)
             {
                 unsigned numParts = fdesc->numParts();
                 for (unsigned i = 1; i <= numParts; i++)
                 {
-                    DBGLOG("\tpartNo=%u, numParts=%u, channel=%u, bondedChannel=%u", i, numParts, channel, getBondedChannel(i));
+                    //DBGLOG("\tpartNo=%u, numParts=%u, channel=%u, bondedChannel=%u", i, numParts, channel, getBondedChannel(i));
 #ifdef ELASTIC_ENABLED
                     StringBuffer sb;
-                    DBGLOG("\tmapped local part filename=%s", fdesc->queryPart(i-1)->getPath(sb).str());
+                    //DBGLOG("\tmapped local part filename=%s", fdesc->queryPart(i-1)->getPath(sb).str());
 #endif
 #ifdef ELASTIC_DATA_DOWNLOAD_ALL
                     if (true)
                     {
-                        DBGLOG("\tDownload all partitions");
+                        //DBGLOG("\tDownload all partitions");
 #else
                     if (!channel || getBondedChannel(i)==channel)
                     {
 #endif
-                        DBGLOG("\tThe partition goes here -> idx=%u", i);
+                        //DBGLOG("\tThe partition goes here -> idx=%u", i);
                         try
                         {
                             IPartDescriptor *pdesc = fdesc->queryPart(i-1);
                             assertex(pdesc);
-                            DBGLOG("\tlocal part info");
-                            this->print_partition(pdesc);
+                            //DBGLOG("\tlocal part info");
+                            //this->print_partition(pdesc);
                             IPartDescriptor *remotePDesc = queryMatchingRemotePart(pdesc, remoteFDesc, i-1);
-                            DBGLOG("\tremote part info");
-                            this->print_partition(remotePDesc);
+                            //DBGLOG("\tremote part info");
+                            //this->print_partition(remotePDesc);
                             Owned<ILazyFileIO> file = createPhysicalFile(subNames.item(idx), pdesc, remotePDesc, ROXIE_FILE, numParts, cached != NULL, channel);
-                            DBGLOG("\tfilename=%s", file->queryFilename());
-                            DBGLOG("\tsource=%s", file->querySource()->queryFilename());
+                            file->print_detail();
+                            //DBGLOG("\tfilename=%s", file->queryFilename());
+                            //DBGLOG("\tsource=%s", file->querySource()->queryFilename());
                             IPropertyTree &partProps = pdesc->queryProperties();
                             f->addFile(file.getClear(), partProps.getPropInt64("@offset"), subname);
                             // use the actual file name for the partition
@@ -2265,7 +2269,7 @@ public:
                     }
                     else
                     {
-                        DBGLOG("\tThe partition foes not belong to here -> idx=%u", i);
+                        //DBGLOG("\tThe partition foes not belong to here -> idx=%u", i);
                         f->addFile(NULL, 0, NULL);
                     }
                 }
@@ -2319,12 +2323,14 @@ public:
     }
     IKeyArray *createKeyArray(bool isOpt, unsigned channel, unsigned maxParts) const
     {
+        DBGLOG("CResolvedFile::createKeyArray -> channel=%u, maxParts=%u", channel, maxParts);
         Owned<IKeyArray> ret = ::createKeyArray();
         if (channel)
         {
             ret->addKey(NULL);
             for (unsigned partNo = 1; partNo <= maxParts; partNo++)
             {
+                DBGLOG("\tpartNo=%u", partNo);
                 if (channel == getBondedChannel(partNo))
                 {
                     Owned<IKeyIndexSet> keyset = createKeyIndexSet();
@@ -2337,9 +2343,11 @@ public:
                         unsigned crc = 0;
                         if (fdesc) // NB there may be no parts for this channel 
                         {
+                            DBGLOG("\t@ this is fdesc");
                             IPartDescriptor *pdesc = fdesc->queryPart(partNo-1);
                             if (pdesc)
                             {
+                                DBGLOG("\t#here have pdesc");
                                 IPartDescriptor *remotePDesc = queryMatchingRemotePart(pdesc, remoteFDesc, partNo-1);
                                 part.setown(createPhysicalFile(subNames.item(idx), pdesc, remotePDesc, ROXIE_KEY, fdesc->numParts(), cached != NULL, channel));
                                 pdesc->getCrc(crc);
@@ -2347,8 +2355,10 @@ public:
                         }
                         if (part)
                         {
+                            DBGLOG("\there has parts -> partFileName=%s", part->querySource()->queryFilename());
                             if (lazyOpen)
                             {
+                                DBGLOG("\tuse lazyOpen");
                                 // We pass the IDelayedFile interface to createKeyIndex, so that it does not open the file immediately
                                 keyset->addIndex(createKeyIndex(part->queryFilename(), crc, *QUERYINTERFACE(part.get(), IDelayedFile), false, false));
                             }

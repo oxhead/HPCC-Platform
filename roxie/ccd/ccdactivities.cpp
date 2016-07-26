@@ -314,6 +314,7 @@ protected:
 
     inline void checkPartChanged(PartNoType &newPart)
     {
+        //DBGLOG("CRoxieSlaveActivity::checkPartChanged -> newPart=%u, lastPart=%u", newPart.partNo, lastPartNo.partNo);
         if (newPart.partNo!=lastPartNo.partNo || newPart.fileNo!=lastPartNo.fileNo)
         {
             lastPartNo.partNo = newPart.partNo;
@@ -3182,8 +3183,10 @@ protected:
     virtual void createSegmentMonitors() = 0;
     virtual void setPartNo(bool filechanged)
     {
+        //DBGLOG("CRoxieKeyedActivity::setPartNo");
         if (!lastPartNo.partNo)  // Check for ,LOCAL indexes
         {
+            //DBGLOG("\tcase 1");
             assertex(filechanged);
             Owned<IKeyIndexSet> allKeys = createKeyIndexSet();
             for (unsigned subpart = 0; subpart < keyArray->length(); subpart++)
@@ -3209,6 +3212,8 @@ protected:
         }
         else
         {
+            //DBGLOG("\tcase 2");
+            //DBGLOG("\tlastPart=%u", lastPartNo.partNo);
             IKeyIndexBase *kib = keyArray->queryKeyPart(lastPartNo.partNo);
             assertex(kib != NULL);
             IKeyIndex *k = kib->queryPart(lastPartNo.fileNo);
@@ -3272,6 +3277,7 @@ protected:
 
     bool checkLimit(unsigned __int64 limit)
     {
+        DBGLOG("CRoxieIndexActivity::checkLimit -> limit=%llu", limit);
         assertex(!resent);
         unsigned __int64 result = 0;
         unsigned inputsDone = 0;
@@ -3326,6 +3332,7 @@ public:
         numSeeks = 0;
         if (packet->getSmartStepInfoLength())
         {
+            //DBGLOG("CRoxieIndexActivity::init -> smartStep");
             const byte *smartStepInfoValue = packet->querySmartStepInfoData();
             numSkipFields = * (unsigned short *) smartStepInfoValue;
             smartStepInfoValue += sizeof(unsigned short);
@@ -3359,6 +3366,7 @@ public:
         }
         else
         {
+            //DBGLOG("CRoxieIndexActivity::init -> not smartStep");
             if (logctx.queryTraceLevel() > 10)
                 logctx.CTXLOG("0 seek rows provided.");
         }
@@ -3369,6 +3377,7 @@ public:
         CRoxieKeyedActivity::onCreate();
         inputData = (PartNoType *) serializedCreate.readDirect(0);
         inputCount = (serializedCreate.length() - serializedCreate.getPos()) / sizeof(*inputData);
+        //DBGLOG("CRoxieIndexActivity::onCreate -> inputCount=%u", inputCount);
         indexHelper->setCallback(&callback);
     }
 
@@ -3426,6 +3435,7 @@ public:
 
     virtual void setPartNo(bool fileChanged)
     {
+        //DBGLOG("CRoxieIndexActivity::setPartNo");
         // NOTE - may be used by both indexread and normalize...
         if (steppingOffset) // MORE - may be other cases too - eg want output sorted and there are multiple subfiles...
         {
@@ -3528,6 +3538,35 @@ public:
             steppingRow = NULL;
     }
 
+    virtual bool hasLocalData2()
+    {
+        DBGLOG("CRoxieIndexReadActivity::hasLocalData");
+        PartNoType &part = inputData[inputsDone];
+        IKeyIndex *keyIndex = keyArray->queryKeyPart(part.partNo)->queryPart(part.fileNo);
+        if (keyIndex)
+        {
+            DBGLOG("\tindexFile=%s", keyIndex->queryFileName());
+            ILazyFileIO *partLazyFileIO = QUERYINTERFACE(keyIndex->querySource(), ILazyFileIO);
+            //DBGLOG("\tpartition file=%s", partLazyFileIO->queryFilename());
+            //DBGLOG("\tpartition source=%s", partLazyFileIO->querySource()->queryFilename());
+            // Enable data reloading
+            if (partLazyFileIO->isRemote())
+            {
+                if (partLazyFileIO->queryTarget()->exists())
+                {
+                    //DBGLOG("\tthe requested partition requires to load");
+                    partLazyFileIO->switchToLocal();
+                    //file->reloadIFileIOArray(channel, partNo);
+                }
+                //else
+                //{
+                //    DBGLOG("\tthe requested partition does not exist");
+                //}
+            }
+        }
+        return true;
+    }
+
     virtual IMessagePacker *process()
     {
         MTIME_SECTION(queryActiveTimer(), "CRoxieIndexReadActivity ::process");
@@ -3560,6 +3599,7 @@ public:
         bool continuationNeeded = false;
         while (!aborted && inputsDone < inputCount)
         {
+            //DBGLOG("\tinputDone=%u, inputCount=%u", inputsDone, inputCount);
             if (!resent || !steppingOffset)     // Bit of a hack... In the resent case, we have already set up the tlk, and all keys are processed at once in the steppingOffset case (which makes checkPartChanged gives a false positive in this case)
                 checkPartChanged(inputData[inputsDone]);
             if (tlk)
@@ -4404,12 +4444,12 @@ public:
 
     virtual bool hasLocalData()
     {
-        DBGLOG("CRoxieFetchActivityBase::hasLocalData");
+        //DBGLOG("CRoxieFetchActivityBase::hasLocalData");
         PartNoType partNoType = *(PartNoType *) inputData;
         unsigned partNo = partNoType.partNo;
         unsigned channel = packet->queryHeader().channel;
-        DBGLOG("\tpartNo=%u, fileNo=%u", partNo, partNoType.fileNo);
-        DBGLOG("\tchannel=%u", channel);
+        //DBGLOG("\tpartNo=%u, fileNo=%u", partNo, partNoType.fileNo);
+        //DBGLOG("\tchannel=%u", channel);
 
         const IResolvedFile *rFile = variableFileName ? varFileInfo : factory->datafile;
         if (rFile)
@@ -4419,28 +4459,28 @@ public:
             offset_t base;
             IFileIO *partFileIO = file->getIFileIOArray(false, channel)->getFilePart(partNo, base);
             ILazyFileIO *partLazyFileIO = QUERYINTERFACE(partFileIO, ILazyFileIO);
-            DBGLOG("\tpartition file=%s", partLazyFileIO->queryFilename());
-            DBGLOG("\tpartition source=%s", partLazyFileIO->querySource()->queryFilename());
+            //DBGLOG("\tpartition file=%s", partLazyFileIO->queryFilename());
+            //DBGLOG("\tpartition source=%s", partLazyFileIO->querySource()->queryFilename());
+            // Enable data reloading
             if (partLazyFileIO->isRemote())
             {
-                Owned<IFile> partFile = createIFile(partLazyFileIO->queryFilename());
-                if (partFile->exists())
+                if (partLazyFileIO->queryTarget()->exists())
                 {
-                    DBGLOG("\tthe requested partition requires to load");
-                    file->reloadIFileIOArray(channel, partNo);
+                    //DBGLOG("\tthe requested partition requires to load");
+                    partLazyFileIO->switchToLocal();
+                    //file->reloadIFileIOArray(channel, partNo);
                 }
-                else
-                {
-                    DBGLOG("\tthe requested partition does not exist");
-                }
-                partFile.clear();
+                //else
+                //{
+                //    DBGLOG("\tthe requested partition does not exist");
+                //}
             }
             return !partLazyFileIO->isRemote();
         }
-        else
-        {
-            DBGLOG("\tempty IResolvedFile");
-        }
+        //else
+        //{
+        //    DBGLOG("\tempty IResolvedFile");
+        //}
         return true;
     }
 

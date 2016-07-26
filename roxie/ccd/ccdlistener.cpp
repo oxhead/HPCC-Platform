@@ -1540,7 +1540,7 @@ public:
 
     virtual void checkAccess(IpAddress &peer, const char *queryName, const char *queryText, bool isBlind)
     {
-		DBGLOG("quertName=%s, queryText=%s", queryName, queryText);
+		//DBGLOG("quertName=%s, queryText=%s", queryName, queryText);
         bool allowed = true;
         StringBuffer errorMsg;
         int errorCode = -1;

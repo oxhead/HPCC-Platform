@@ -1140,27 +1140,29 @@ public:
                 return;
             }
             
-            //if (!currentActivity->hasLocalData())
-            //{
-            //    DBGLOG("@ no local data");
-            //    CriticalBlock b(actCrit);
-            //    busy = false;
-            //    DBGLOG("yeild to other slave nodes");
-            //    //return;
-            //}
-            //else
-            //{
-            //    DBGLOG("@ has local data");
-            //}
+            Owned <ISlaveActivityFactory> factory = queryFactory->getSlaveActivityFactory(activityId);
+            assertex(factory);
+            IRoxieSlaveActivity *currentActivity = factory->createActivity(logctx, packet);
+            if (enableElasticRoxie)
+            {
+                // guess this affects performance a lot
+                if (!currentActivity->hasLocalData())
+                {
+                    CriticalBlock b(actCrit);
+                    decIbytiDelay(channel); // speedup to service the next request?
+                    busy = false;
+                    setActivity(NULL);
+                    delete currentActivity;
+                    //DBGLOG("@ no local data, yeild to other slave nodes");
+                    return;
+                }
+
+            }
             
             if (!debugging)
                 ROQ->sendIbyti(header, logctx);
             atomic_inc(&activitiesStarted);
 
-            // guess this affects performance a lot
-            Owned <ISlaveActivityFactory> factory = queryFactory->getSlaveActivityFactory(activityId);
-            assertex(factory);
-            IRoxieSlaveActivity *currentActivity = factory->createActivity(logctx, packet);
             setActivity(currentActivity);
 #ifdef TEST_SLAVE_FAILURE
             bool skip = false;
@@ -1210,7 +1212,7 @@ public:
             if (!skip)
             {
 #endif
-				DBGLOG("# run slave activity -> activityId=%u, kind=%s", activityId, typeid(*currentActivity).name());
+				DBGLOG("# run slave activity -> kind=%s", typeid(*currentActivity).name());
                 Owned<IMessagePacker> output = activity->process();
                 if (logctx.queryTraceLevel() > 5)
                 {

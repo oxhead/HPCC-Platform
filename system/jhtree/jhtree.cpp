@@ -1147,6 +1147,7 @@ unsigned CKeyStore::setKeyCacheLimit(unsigned limit)
 
 IKeyIndex *CKeyStore::doload(const char *fileName, unsigned crc, IReplicatedFile *part, IFileIO *iFileIO, IMemoryMappedFile *iMappedFile, bool isTLK, bool allowPreload)
 {
+    DBGLOG("CKeyStore::doload -> fileName=%s", fileName);
     // isTLK provided by caller since flags in key header unreliable. If either say it's a TLK, I believe it.
     {
         MTIME_SECTION(queryActiveTimer(), "CKeyStore_load");
@@ -1162,15 +1163,18 @@ IKeyIndex *CKeyStore::doload(const char *fileName, unsigned crc, IReplicatedFile
             if (iMappedFile)
             {
                 assert(!iFileIO && !part);
+                DBGLOG("\t@ this is iMappedFile");
                 keyIndex = new CMemKeyIndex(getUniqId(), LINK(iMappedFile), fname, isTLK);
             }
             else if (iFileIO)
             {
                 assert(!part);
+                DBGLOG("\t@ this is iFileIO");
                 keyIndex = new CDiskKeyIndex(getUniqId(), LINK(iFileIO), fname, isTLK, allowPreload);
             }
             else
             {
+                DBGLOG("\t@ this is something else");
                 Owned<IFile> iFile;
                 if (part)
                 {
@@ -1998,6 +2002,7 @@ public:
     virtual unsigned queryScans() { return realKey ? realKey->queryScans() : 0; }
     virtual unsigned querySeeks() { return realKey ? realKey->querySeeks() : 0; }
     virtual const char *queryFileName() { return keyfile.get(); }
+    virtual IFileIO *querySource() { return QUERYINTERFACE(iFileIO.get(), IFileIO);}
     virtual offset_t queryBlobHead() { return checkOpen().queryBlobHead(); }
     virtual void resetCounts() { if (realKey) realKey->resetCounts(); }
     virtual offset_t queryLatestGetNodeOffset() const { return realKey ? realKey->queryLatestGetNodeOffset() : 0; }
