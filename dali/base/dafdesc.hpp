@@ -35,7 +35,7 @@ interface INamedGroupStore;
 
 #define SUPPORTS_MULTI_CLUSTERS  // always now set
 
-#define MAX_REPLICATION_LEVELS 4
+#define MAX_REPLICATION_LEVELS 128
 
 #define DEFAULTXMLROWTAG "Row"
 #define DEFAULTXMLHEADER "<Dataset>"

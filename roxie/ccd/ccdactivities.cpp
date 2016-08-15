@@ -43,6 +43,97 @@
 #include "thorstrand.hpp"
 #include "jstats.h"
 
+#ifndef _STACKTRACE2_H_
+#define _STACKTRACE2_H_
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <execinfo.h>
+#include <cxxabi.h>
+
+/** Print a demangled stack backtrace of the caller function to FILE* out. */
+static inline void print_stacktrace2(SlaveContextLogger &logger, unsigned int max_frames = 63)
+{
+    logger.CTXLOG("stack trace:");
+    
+    // storage array for stack trace address data
+    void* addrlist[max_frames + 1];
+    
+    // retrieve current stack addresses
+    int addrlen = backtrace(addrlist, sizeof(addrlist) / sizeof(void*));
+    
+    if (addrlen == 0) {
+        logger.CTXLOG("  <empty, possibly corrupt>");
+        return;
+    }
+    
+    // resolve addresses into strings containing "filename(function+address)",
+    // this array must be free()-ed
+    char** symbollist = backtrace_symbols(addrlist, addrlen);
+    
+    // allocate string which will be filled with the demangled function name
+    size_t funcnamesize = 256;
+    char* funcname = (char*)malloc(funcnamesize);
+    
+    // iterate over the returned symbol lines. skip the first, it is the
+    // address of this function.
+    for (int i = 1; i < addrlen; i++)
+    {
+        char *begin_name = 0, *begin_offset = 0, *end_offset = 0;
+        
+        // find parentheses and +address offset surrounding the mangled name:
+        // ./module(function+0x15c) [0x8048a6d]
+        for (char *p = symbollist[i]; *p; ++p)
+        {
+            if (*p == '(')
+                begin_name = p;
+            else if (*p == '+')
+                begin_offset = p;
+            else if (*p == ')' && begin_offset) {
+                end_offset = p;
+                break;
+            }
+        }
+        
+        if (begin_name && begin_offset && end_offset
+            && begin_name < begin_offset)
+        {
+            *begin_name++ = '\0';
+            *begin_offset++ = '\0';
+            *end_offset = '\0';
+            
+            // mangled name is now in [begin_name, begin_offset) and caller
+            // offset in [begin_offset, end_offset). now apply
+            // __cxa_demangle():
+            
+            int status;
+            char* ret = abi::__cxa_demangle(begin_name,
+                                            funcname, &funcnamesize, &status);
+            if (status == 0) {
+                funcname = ret; // use possibly realloc()-ed string
+                logger.CTXLOG("  %s : %s+%s",
+                       symbollist[i], funcname, begin_offset);
+            }
+            else {
+                // demangling failed. Output function name as a C function with
+                // no arguments.
+                logger.CTXLOG("  %s : %s()+%s",
+                       symbollist[i], begin_name, begin_offset);
+            }
+        }
+        else
+        {
+            // couldn't parse the line? print the whole line.
+            logger.CTXLOG("  %s", symbollist[i]);
+        }
+    }
+    
+    free(funcname);
+    free(symbollist);
+}
+
+#endif // _STACKTRACE_H_
+
 size32_t diskReadBufferSize = 0x10000;
 
 using roxiemem::OwnedRoxieRow;
@@ -426,11 +517,13 @@ public:
 
     virtual void abort() 
     {
-        if (logctx.queryTraceLevel() > 2)
+        if (logctx.queryTraceLevel() > 0)
+        //if (logctx.queryTraceLevel() > 2)
         {
             StringBuffer s;
             logctx.CTXLOG("Aborting running activity: %s", packet->queryHeader().toString(s).str());
         }
+        //print_stacktrace2(logctx);
         aborted = true;
         logctx.abort();
         if (queryContext)
@@ -3569,19 +3662,23 @@ public:
 
     virtual IMessagePacker *process()
     {
+        //DBGLOG("CRoxieIndexReadActivity::process");
         MTIME_SECTION(queryActiveTimer(), "CRoxieIndexReadActivity ::process");
         unsigned __int64 keyedLimit = readHelper->getKeyedLimit();
         unsigned __int64 limit = readHelper->getRowLimit();
 
+        //DBGLOG("\t1) check threshold");
         if (!resent && (keyedLimit != (unsigned __int64) -1) && ((keyedLimit > preabortIndexReadsThreshold) || (indexHelper->getFlags() & TIRcountkeyedlimit) != 0)) // Don't recheck the limit every time!
         {
             if (!checkLimit(keyedLimit))
             {
-                limitExceeded(true); 
+                limitExceeded(true);
+                //DBGLOG("\t2) exceeded limit -> %llu", keyedLimit);
                 return NULL;
             }
 
         }
+        //DBGLOG("\t3) about to read start");
         unsigned __int64 stopAfter = readHelper->getChooseNLimit();
 
         Owned<IMessagePacker> output = ROQ->createOutputStream(packet->queryHeader(), false, logctx);
@@ -3597,9 +3694,11 @@ public:
         if (steppingRow)
             rawSeek = steppingRow;
         bool continuationNeeded = false;
+        //DBGLOG("\t4) about to read index -> aborted=%u, inputsDone=%u, inputCount=%u", aborted, inputsDone, inputCount);
+        //while (inputsDone < inputCount)
         while (!aborted && inputsDone < inputCount)
         {
-            //DBGLOG("\tinputDone=%u, inputCount=%u", inputsDone, inputCount);
+            //DBGLOG("\t5) inputDone=%u, inputCount=%u", inputsDone, inputCount);
             if (!resent || !steppingOffset)     // Bit of a hack... In the resent case, we have already set up the tlk, and all keys are processed at once in the steppingOffset case (which makes checkPartChanged gives a false positive in this case)
                 checkPartChanged(inputData[inputsDone]);
             if (tlk)
@@ -3732,6 +3831,7 @@ public:
             else
                 inputsDone++;
         }
+        //DBGLOG("\t6) finished read index");
         if (tlk) // a very early abort can mean it is NULL.... MORE is this the right place to put it or should it be inside the loop??
         {
             if (logctx.queryTraceLevel() > 10 && !aborted)
@@ -3742,6 +3842,7 @@ public:
             }
             noteStats(keyprocessed-keyprocessedBefore, skipped);
         }
+        //DBGLOG("\t7) about to return");
         if (aborted)
             return NULL;
         else
@@ -4506,15 +4607,20 @@ public:
 
 IMessagePacker *CRoxieFetchActivityBase::process()
 {
-	//DBGLOG("ac:CRoxieFetchActivityBase::process");
+    //DBGLOG("CRoxieFetchActivityBase::process");
     MTIME_SECTION(queryActiveTimer(), "CRoxieFetchActivityBase::process");
+    //DBGLOG("\t1) mark time section");
     Owned<IMessagePacker> output = ROQ->createOutputStream(packet->queryHeader(), false, logctx);
+    //DBGLOG("\t2) get output stream");
     unsigned accepted = 0;
     unsigned rejected = 0;
     unsigned __int64 rowLimit = helper->getRowLimit();
     OptimizedRowBuilder rowBuilder(rowAllocator, meta, output, serializer);
+    //DBGLOG("\t3) get row builder");
+    //DBGLOG("\tinputData=%u, inputLimit=%u", inputData, inputLimit);
     while (!aborted && inputData < inputLimit)
     {
+        //DBGLOG("\tinputData=%u, inputLimit=%u", inputData, inputLimit);
         checkPartChanged(*(PartNoType *) inputData);
         //if (!hasLocalData())
         //{
@@ -4542,12 +4648,15 @@ IMessagePacker *CRoxieFetchActivityBase::process()
         //else
         //    DBGLOG("\tnot localFpos");
                 
-
+        //DBGLOG("\t5) ready to doFetch");
         unsigned thisSize = doFetch(rowBuilder, pos, rp, inputData);
+        //DBGLOG("\t6) complete doFetch");
         inputData += rhsSize;
         if (thisSize)
         {
+            //DBGLOG("\t7) ready to write output -> size=%u", thisSize);
             rowBuilder.writeToOutput(thisSize, true);
+            //DBGLOG("\t8) complete writing output");
 
             accepted++;
             if (accepted > rowLimit)
@@ -4563,10 +4672,12 @@ IMessagePacker *CRoxieFetchActivityBase::process()
         else
             rejected++;
     }
+    //DBGLOG("\t9) about to record statistics");
     logctx.noteStatistic(StNumDiskSeeks, accepted+rejected);
     logctx.noteStatistic(StNumDiskRowsRead, accepted+rejected);
     logctx.noteStatistic(StNumDiskAccepted, accepted);
     logctx.noteStatistic(StNumDiskRejected, rejected);
+    //DBGLOG("\t10) almost done");
     if (aborted)
         return NULL;
     else

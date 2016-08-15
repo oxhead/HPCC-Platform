@@ -4087,7 +4087,10 @@ public:
                     (p->queryHeader().activityId & (ROXIE_SLA_PRIORITY | ROXIE_HIGH_PRIORITY)) && 
                     (p->queryHeader().overflowSequence == 0) &&
                     (p->queryHeader().continueSequence & ~CONTINUE_SEQUENCE_SKIPTO)==0)
+            {
                 p->queryHeader().retries |= ROXIE_FASTLANE;
+                print_stacktrace();
+            }
 
             if (p->queryHeader().channel)
             {

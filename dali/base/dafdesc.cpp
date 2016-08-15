@@ -2402,7 +2402,16 @@ void loadDefaultBases()
         for (unsigned replicationLevel = 0; replicationLevel < MAX_REPLICATION_LEVELS; replicationLevel++)
         {
             if (unixBaseDirectories[groupType][replicationLevel].isEmpty())
-                unixBaseDirectories[groupType][replicationLevel].set(defaultUnixBaseDirectories[groupType][replicationLevel]);
+            {
+                // Roxie hacks
+                if (groupType == grp_roxie)
+                {
+                    if (replicationLevel == 0)
+                        unixBaseDirectories[groupType][replicationLevel].set(defaultUnixBaseDirectories[groupType][replicationLevel]);
+                    else
+                        unixBaseDirectories[groupType][replicationLevel].set(unixBaseDirectories[groupType][0]); // use the level-1 as the default
+                }
+            }
             if (windowsBaseDirectories[groupType][replicationLevel].isEmpty())
                 windowsBaseDirectories[groupType][replicationLevel].set(defaultWindowsBaseDirectories[groupType][replicationLevel]);
         }

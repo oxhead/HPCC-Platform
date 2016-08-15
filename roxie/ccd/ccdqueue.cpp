@@ -877,6 +877,9 @@ public:
     }
 };
 
+static unsigned wid_counter = 0;
+static unsigned qid_counter = 0;
+CriticalSection qidCrit;
 class CRoxieWorker : public CInterface, implements IPooledThread
 {
     RoxieQueue *queue;
@@ -888,6 +891,7 @@ class CRoxieWorker : public CInterface, implements IPooledThread
     Owned<IRoxieSlaveActivity> activity;
     Owned<IRoxieQueryPacket> packet;
     SlaveContextLogger logctx;
+    unsigned wid = 0;
 
 public:
     IMPLEMENT_IINTERFACE;
@@ -904,6 +908,8 @@ public:
         stopped = false;
         busy = false;
         abortJob = false;
+        wid_counter += 1;
+        wid = wid_counter;
     }
     bool canReuse()
     {
@@ -1056,6 +1062,7 @@ public:
         }
         try
         {
+            //DBGLOG("doActivity -> queryId=%llu, uid=%u, server=%u, channel=%u, retries=%u", header.queryHash, header.uid, header.serverIdx, header.channel, header.retries);
             //if (logctx.queryTraceLevel() > 0)
             if (logctx.queryTraceLevel() > 8)
             {
@@ -1076,11 +1083,13 @@ public:
                 bool primChannel = true;
                 if (subChannels[channel] != 1) 
                     primChannel = false;
-                //DBGLOG("@@ channel=%u, subChannels=%u, numSlaves=%u, primary=%u", channel, subChannels[channel], numSlaves[channel], primChannel);
+                //DBGLOG("\tchannel=%u, subChannels=%u, numSlaves=%u, primary=%u", channel, subChannels[channel], numSlaves[channel], primChannel);
                 bool myTurnToDelayIBYTI =  true;  // all slaves will delay, except one
                 unsigned hdrHashVal = header.priorityHash();
+    
                 if ((((hdrHashVal % numSlaves[channel]) + 1) == subChannels[channel]))
                     myTurnToDelayIBYTI =  false;
+                //DBGLOG("\t* priority hash = %u --> delay=%u", hdrHashVal, myTurnToDelayIBYTI);
 
                 if (myTurnToDelayIBYTI) 
                 {
@@ -1126,6 +1135,26 @@ public:
                     }
                 }
             }
+            
+            Owned <ISlaveActivityFactory> factory = queryFactory->getSlaveActivityFactory(activityId);
+            assertex(factory);
+            IRoxieSlaveActivity *currentActivity = factory->createActivity(logctx, packet);
+            if (enableElasticRoxie)
+            {
+                // guess this affects performance a lot
+                if (!currentActivity->hasLocalData())
+                {
+                    //if (doIbytiDelay)
+                        //resetIbytiDelay(channel);
+                        //decIbytiDelay(channel); // speedup to service the next request?
+                    CriticalBlock b(actCrit);
+                    busy = false;
+                    setActivity(NULL);
+                    //delete currentActivity;
+                    //DBGLOG("@ no local data, yeild to other slave nodes");
+                    return;
+                }
+            }
 
             if (abortJob) 
             {
@@ -1138,25 +1167,6 @@ public:
                     logctx.CTXLOG("Stop before processing - activity aborted %s", header.toString(x).str());
                 }
                 return;
-            }
-            
-            Owned <ISlaveActivityFactory> factory = queryFactory->getSlaveActivityFactory(activityId);
-            assertex(factory);
-            IRoxieSlaveActivity *currentActivity = factory->createActivity(logctx, packet);
-            if (enableElasticRoxie)
-            {
-                // guess this affects performance a lot
-                if (!currentActivity->hasLocalData())
-                {
-                    CriticalBlock b(actCrit);
-                    decIbytiDelay(channel); // speedup to service the next request?
-                    busy = false;
-                    setActivity(NULL);
-                    delete currentActivity;
-                    //DBGLOG("@ no local data, yeild to other slave nodes");
-                    return;
-                }
-
             }
             
             if (!debugging)
@@ -1212,9 +1222,21 @@ public:
             if (!skip)
             {
 #endif
-				DBGLOG("# run slave activity -> kind=%s", typeid(*currentActivity).name());
+                unsigned qid = 0;
+                {
+                    CriticalBlock b(qidCrit);
+                    qid_counter += 1;
+                    qid = qid_counter;
+                }
+                
+                DBGLOG("# [%u][%u] run slave activity -> kind=%s", wid, qid, typeid(*currentActivity).name());
+                unsigned now = msTick();
                 Owned<IMessagePacker> output = activity->process();
-                if (logctx.queryTraceLevel() > 5)
+                unsigned elapsedTime = msTick() - now;
+                DBGLOG("# [%u][%u] elapsedTime=%u", wid, qid, elapsedTime);
+                
+                if (logctx.queryTraceLevel() > 0)
+                //if (logctx.queryTraceLevel() > 5)
                 {
                     StringBuffer x;
                     logctx.CTXLOG("done processing %s", header.toString(x).str());
@@ -1226,6 +1248,8 @@ public:
                     setActivity(NULL);  // Ensures all stats are merged from child queries etc
                     logctx.flush();
                     output->flush(true);
+                    StringBuffer x;
+                    logctx.CTXLOG("done flushing %s", header.toString(x).str());
                 }
 #ifdef TEST_SLAVE_FAILURE
             }
@@ -1966,6 +1990,7 @@ public:
 
     void doIbyti(RoxiePacketHeader &header, RoxieQueue &queue, IThreadPool *workers)
     {
+        //DBGLOG("doIbyti -> queryId=%llu, uid=%u, server=%u, channel=%u, retries=%u", header.queryHash, header.uid, header.serverIdx, header.channel, header.retries);
         assertex(!localSlave);
         atomic_inc(&ibytiPacketsReceived);
         bool preActivity = false;
@@ -1983,11 +2008,12 @@ public:
         
         if (header.retries == QUERY_ABORTED)
         {
+            //DBGLOG("\t @ abort1");
             abortRunning(header, workers, false, preActivity);
             queue.remove(header);
 
-            //if (traceLevel > 0)
-            if (traceLevel > 10)
+            if (traceLevel > 0)
+            //if (traceLevel > 10)
             {
                 StringBuffer s; 
                 DBGLOG("Abort activity %s", header.toString(s).str());
@@ -2018,8 +2044,13 @@ public:
                     atomic_inc(&ibytiPacketsWorked);
                     return;
                 }
+                //else
+                //{
+                //    DBGLOG("not found in queue");
+                //}
                 if (abortRunning(header, workers, true, preActivity))
                 {
+                    //DBGLOG("\t @ abort2");
                     if (preActivity)
                         atomic_inc(&ibytiPacketsWorked); // MORE - may want to have a diff counter for this (not in queue but in IBYTI wait or before) 
                     else 
@@ -2035,6 +2066,7 @@ public:
 
     void processMessage(MemoryBuffer &mb, RoxiePacketHeader &header, RoxieQueue &queue, IThreadPool *workers)
     {
+        //DBGLOG("processMessage -> queryId=%llu, uid=%u, server=%u, channel=%u, retries=%u", header.queryHash, header.uid, header.serverIdx, header.channel, header.retries);
 		//DBGLOG("RoxieSocketQueueManager:processMessage -> server=%u, activityId=%u", header.serverIdx, header.activityId);
         // NOTE - this thread needs to do as little as possible - just read packets and queue them up - otherwise we can get packet loss due to buffer overflow
         // DO NOT put tracing on this thread except at very high tracelevels!
@@ -2053,11 +2085,13 @@ public:
             doIbyti(header, queue, workers); // MORE - check how fast this is!
         else
         {
+            //DBGLOG("** priority header **");
             Owned<IRoxieQueryPacket> packet = createRoxiePacket(mb);
             SlaveContextLogger logctx(packet);
             unsigned retries = header.thisChannelRetries();
             if (retries)
             {
+                //DBGLOG("$ this is a retry");
                 // MORE - is this fast enough? By the time I am seeing retries I may already be under load. Could move onto a separate thread
                 assertex(header.channel); // should never see a retry on channel 0
                 if (retries >= SUBCHANNEL_MASK)
@@ -2124,6 +2158,7 @@ public:
             }
             else // first time (not a retry). 
             {
+                //DBGLOG("first time");
                 if (header.channel)
                 {
                     queue.enqueue(packet.getClear());

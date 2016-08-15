@@ -102,10 +102,10 @@ extern unsigned myNodeIndex;
 #define SUBCHANNEL_BITS 2    // allows for up to 7-way redundancy in a 16-bit short retries flag, high bits used for indicators/flags
 //#define TIME_PACKETS
 
-#define ROXIE_FASTLANE      0x8000u         // mask in retries indicating slave reply goes on the fast queue
-#define ROXIE_BROADCAST     0x4000u         // mask in retries indicating original request was a broadcast
+#define ROXIE_FASTLANE      0x8000000000000000ull         // mask in retries indicating slave reply goes on the fast queue
+#define ROXIE_BROADCAST     0x4000000000000000ull         // mask in retries indicating original request was a broadcast
 #define ROXIE_RETRIES_MASK  (~(ROXIE_FASTLANE|ROXIE_BROADCAST)) // retries bits mask
-#define QUERY_ABORTED       0xffffu         // special value for retries to indicate abandoned query
+#define QUERY_ABORTED       0xffffffffffffffffull         // special value for retries to indicate abandoned query
 
 #ifdef _DEBUG
 #define MAX_DEBUGREQUEST_RETRIES 1
@@ -240,7 +240,7 @@ private:
 
 public:
     unsigned packetlength;
-    unsigned short retries;         // how many retries on this query, the high bits are used as flags, see above
+    unsigned long long retries;         // how many retries on this query, the high bits are used as flags, see above
     unsigned short overflowSequence;// Used if more than one packet-worth of data from server - eg keyed join. We don't mind if we wrap...
     unsigned short continueSequence;// Used if more than one chunk-worth of data from slave. We don't mind if we wrap 
     unsigned short channel;         // multicast family to send on
