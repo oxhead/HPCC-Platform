@@ -1229,7 +1229,9 @@ public:
                     qid = qid_counter;
                 }
                 
-                DBGLOG("# [%u][%u] run slave activity -> kind=%s", wid, qid, typeid(*currentActivity).name());
+                StringBuffer partPath;
+                currentActivity->getPartPath(partPath);
+                DBGLOG("# [%u][%u] run slave activity -> kind=%s, part=%s", wid, qid, typeid(*currentActivity).name(), partPath.str());
                 unsigned now = msTick();
                 Owned<IMessagePacker> output = activity->process();
                 unsigned elapsedTime = msTick() - now;

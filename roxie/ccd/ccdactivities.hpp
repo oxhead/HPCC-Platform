@@ -59,6 +59,7 @@ interface IRoxieSlaveActivity : extends IInterface
     virtual unsigned queryId() = 0;
     virtual IIndexReadActivityInfo *queryIndexReadActivity() = 0;
     virtual bool hasLocalData() = 0;
+    virtual StringBuffer getPartPath(StringBuffer &) = 0;
 };
 
 interface ISlaveActivityFactory : extends IActivityFactory

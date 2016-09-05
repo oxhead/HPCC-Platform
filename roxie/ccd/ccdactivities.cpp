@@ -400,6 +400,7 @@ protected:
     bool variableFileName;
     bool allowFieldTranslation;
     Owned<const IResolvedFile> varFileInfo;
+    ILazyFileIO *currentPartLazyFileIO;
 
     virtual void setPartNo(bool filechanged) = 0;
 
@@ -489,6 +490,10 @@ public:
     virtual void setVariableFileInfo() = 0;
     virtual IIndexReadActivityInfo *queryIndexReadActivity() { throwUnexpected(); } // should only be called for index activity
 
+    virtual StringBuffer getPartPath(StringBuffer &sb)
+    {
+        return sb;
+    }
     virtual bool hasLocalData()
     {
         return true;
@@ -4542,6 +4547,13 @@ public:
         inputLimit = inputData + (serializedCreate.length() - serializedCreate.getPos());
         needsRHS = helper->transformNeedsRhs();
     }
+    
+    virtual StringBuffer getPartPath(StringBuffer &sb)
+    {
+        if (currentPartLazyFileIO)
+            sb.append(currentPartLazyFileIO->querySource()->queryFilename());
+        return sb;
+    }
 
     virtual bool hasLocalData()
     {
@@ -4560,6 +4572,7 @@ public:
             offset_t base;
             IFileIO *partFileIO = file->getIFileIOArray(false, channel)->getFilePart(partNo, base);
             ILazyFileIO *partLazyFileIO = QUERYINTERFACE(partFileIO, ILazyFileIO);
+            currentPartLazyFileIO = partLazyFileIO;
             //DBGLOG("\tpartition file=%s", partLazyFileIO->queryFilename());
             //DBGLOG("\tpartition source=%s", partLazyFileIO->querySource()->queryFilename());
             // Enable data reloading
